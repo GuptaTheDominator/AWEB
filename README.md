@@ -30,8 +30,8 @@ Background Layer →  AwebForegroundService, BootReceiver, WorkManager
 | Phase | Description                         | Status       |
 |-------|-------------------------------------|--------------|
 | 1     | Basic browser shell (GeckoView)     | ✅ Built      |
-| 2     | Workspace isolation                 | 🔲 Next      |
-| 3     | Tabs per workspace                  | 🔲 Planned   |
+| 2     | Workspace isolation                 | ✅ Built      |
+| 3     | Tabs per workspace                  | 🔲 Next      |
 | 4     | Automatic tab lifecycle             | 🔲 Planned   |
 | 5     | Keep Alive tabs                     | 🔲 Planned   |
 | 6     | Memory modes + stability            | 🔲 Planned   |
@@ -50,9 +50,22 @@ A single-tab browser shell that:
 - Shows page loading progress
 - Handles URL input and DuckDuckGo search fallback
 - Dark themed Compose UI
-- Room database schema defined (used from Phase 2)
+- Room database schema defined
 - Hilt DI wired
 - Manifest ready for foreground service + boot receiver
+
+## Phase 2 Deliverable
+
+Fully isolated multiple workspaces:
+- `WorkspaceRepository` — CRUD, default workspace seed, reorder
+- `SettingsRepository` — typed settings with defaults (MemoryMode, SearchEngine)
+- `WorkspaceSessionManager` — maps workspace → GeckoSessionWrapper via permanent contextId
+- `WorkspaceViewModel` — drives all workspace + browser state
+- `WorkspaceSidebar` — persistent left-rail with tap-to-switch, long-press menu (rename/clear/delete)
+- `CreateWorkspaceDialog`, `RenameWorkspaceDialog`, `DeleteWorkspaceDialog`, `ClearWorkspaceDataDialog`
+- `BrowserScreen` upgraded to be workspace-aware; active session changes on workspace switch
+- Workspace colour indicator in toolbar changes per active workspace
+- Each workspace cookie/storage is fully isolated via GeckoView `contextId`
 
 ---
 

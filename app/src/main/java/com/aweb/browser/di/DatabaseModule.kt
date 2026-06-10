@@ -3,6 +3,8 @@ package com.aweb.browser.di
 import android.content.Context
 import androidx.room.Room
 import com.aweb.browser.data.db.*
+import com.aweb.browser.data.repository.SettingsRepository
+import com.aweb.browser.data.repository.WorkspaceRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -20,17 +22,24 @@ object DatabaseModule {
         Room.databaseBuilder(
             context,
             AwebDatabase::class.java,
-            "aweb.db"
+            "aweb.db",
         )
-            .fallbackToDestructiveMigration()   // replace with proper migrations before v1 release
+            .fallbackToDestructiveMigration()
             .build()
 
+    @Provides fun provideWorkspaceDao(db: AwebDatabase): WorkspaceDao = db.workspaceDao()
+    @Provides fun provideTabDao     (db: AwebDatabase): TabDao       = db.tabDao()
+    @Provides fun provideSettingDao (db: AwebDatabase): AppSettingDao = db.settingDao()
+
+    // Repositories are @Singleton + @Inject constructor so Hilt creates them automatically,
+    // but we expose them here for clarity and testability.
     @Provides
-    fun provideWorkspaceDao(db: AwebDatabase): WorkspaceDao = db.workspaceDao()
+    @Singleton
+    fun provideWorkspaceRepository(dao: WorkspaceDao): WorkspaceRepository =
+        WorkspaceRepository(dao)
 
     @Provides
-    fun provideTabDao(db: AwebDatabase): TabDao = db.tabDao()
-
-    @Provides
-    fun provideSettingDao(db: AwebDatabase): AppSettingDao = db.settingDao()
+    @Singleton
+    fun provideSettingsRepository(dao: AppSettingDao): SettingsRepository =
+        SettingsRepository(dao)
 }
