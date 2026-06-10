@@ -5,27 +5,43 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import com.aweb.browser.gecko.GeckoRuntimeManager
+import com.aweb.browser.lifecycle.MemoryPressureReceiver
+import com.aweb.browser.lifecycle.TabLifecycleManager
 import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 
 /**
  * Application entry-point.
  *
- * Responsibilities:
- *  - Hilt dependency injection graph root
- *  - GeckoView runtime warm-up (must happen before any Activity draws)
- *  - Notification channel registration for the foreground service
+ * Phase 4 additions:
+ *  - Injects [TabLifecycleManager] (Hilt singleton)
+ *  - Registers [MemoryPressureReceiver] with the system
+ *
+ * The receiver needs live tab/workspace snapshots; these are provided
+ * by [AppState] which is a lightweight in-process singleton updated
+ * by TabViewModel whenever the state changes.
  */
 @HiltAndroidApp
 class AwebApplication : Application() {
 
+    @Inject lateinit var lifecycleManager: TabLifecycleManager
+
     override fun onCreate() {
         super.onCreate()
 
-        // Warm up GeckoView runtime as early as possible so the first
-        // GeckoSession creation is fast when MainActivity opens.
+        // Warm up GeckoView runtime before any Activity draws
         GeckoRuntimeManager.init(this)
 
-        // Register notification channel (required on API 26+)
+        // Register Android memory pressure callbacks
+        registerComponentCallbacks(
+            MemoryPressureReceiver(
+                lifecycleManager  = lifecycleManager,
+                tabsSnapshot      = { AppState.currentTabs },
+                workspaceSnapshot = { AppState.currentWorkspace },
+            )
+        )
+
+        // Register foreground service notification channel
         createNotificationChannel()
     }
 
@@ -34,7 +50,7 @@ class AwebApplication : Application() {
             val channel = NotificationChannel(
                 getString(R.string.notification_channel_id),
                 getString(R.string.notification_channel_name),
-                NotificationManager.IMPORTANCE_LOW   // silent, persistent
+                NotificationManager.IMPORTANCE_LOW,
             ).apply {
                 description = "Keeps AWEB workspaces and Keep Alive tabs running"
                 setShowBadge(false)

@@ -32,8 +32,8 @@ Background Layer →  AwebForegroundService, BootReceiver, WorkManager
 | 1     | Basic browser shell (GeckoView)     | ✅ Built      |
 | 2     | Workspace isolation                 | ✅ Built      |
 | 3     | Tabs per workspace                  | ✅ Built      |
-| 4     | Automatic tab lifecycle             | 🔲 Next      |
-| 5     | Keep Alive tabs                     | 🔲 Planned   |
+| 4     | Automatic tab lifecycle             | ✅ Built      |
+| 5     | Keep Alive tabs                     | 🔲 Next      |
 | 6     | Memory modes + stability            | 🔲 Planned   |
 | 7     | 24/7 background survival (HyperOS) | 🔲 Planned   |
 | 8     | Browser completeness                | 🔲 Planned   |
@@ -53,6 +53,22 @@ A single-tab browser shell that:
 - Room database schema defined
 - Hilt DI wired
 - Manifest ready for foreground service + boot receiver
+
+## Phase 4 Deliverable
+
+Automatic tab lifecycle management:
+- `TabLifecycleState` enum: ACTIVE / RECENT / KEEP_ALIVE / UNLOADED
+- `MemoryPolicy` data class: maxRecentLive + maxKeepAlive per mode
+- `TabLifecycleManager` — the lifecycle brain:
+  - `onTabSelected()` — promotes new active, demotes old to RECENT, rebalances all
+  - `onTabClosed()` — frees session, rebalances remaining
+  - `onMemoryPressure()` — responds to Android TRIM_MEMORY levels (mild→severe cascade)
+  - `onAppRestore()` — on restart: live session for active + keep_alive only, rest unloaded
+  - `rebalance()` — LRU eviction with pinned tab resistance, enforces MemoryPolicy limits
+- `MemoryPressureReceiver` — implements ComponentCallbacks2, registered in Application
+- `AppState` — volatile in-process snapshot for cross-thread tab/workspace reads
+- `MemoryStatusBar` — live ● active ◆ keep_alive ◐ recent ○ unloaded counts in sidebar
+- Settings changes (MemoryMode, maxKeepAliveTabs) auto-propagate to lifecycle manager
 
 ## Phase 2 Deliverable
 

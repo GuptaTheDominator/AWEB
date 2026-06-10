@@ -19,8 +19,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aweb.browser.data.entity.TabEntity
 import com.aweb.browser.data.entity.WorkspaceEntity
 import com.aweb.browser.data.repository.WorkspaceRepository
+import com.aweb.browser.ui.tabs.MemoryStatusBar
 
 /**
  * Persistent left-rail workspace sidebar for tablet layout.
@@ -34,14 +36,16 @@ import com.aweb.browser.data.repository.WorkspaceRepository
  */
 @Composable
 fun WorkspaceSidebar(
-    workspaces      : List<WorkspaceEntity>,
-    activeWorkspace : WorkspaceEntity?,
-    onSwitch        : (WorkspaceEntity) -> Unit,
-    onNew           : () -> Unit,
-    onRename        : (WorkspaceEntity) -> Unit,
-    onDelete        : (WorkspaceEntity) -> Unit,
-    onClearData     : (WorkspaceEntity) -> Unit,
-    modifier        : Modifier = Modifier,
+    workspaces       : List<WorkspaceEntity>,
+    activeWorkspace  : WorkspaceEntity?,
+    activeTabs       : List<TabEntity> = emptyList(),
+    liveSessionCount : Int = 0,
+    onSwitch         : (WorkspaceEntity) -> Unit,
+    onNew            : () -> Unit,
+    onRename         : (WorkspaceEntity) -> Unit,
+    onDelete         : (WorkspaceEntity) -> Unit,
+    onClearData      : (WorkspaceEntity) -> Unit,
+    modifier         : Modifier = Modifier,
 ) {
     Surface(
         color         = Color(0xFF161616),
@@ -100,6 +104,17 @@ fun WorkspaceSidebar(
                         onClearData     = { onClearData(workspace) },
                     )
                 }
+            }
+
+            Divider(color = Color(0xFF2A2A2A))
+
+            // ── Memory status ─────────────────────────────────────────────
+            if (activeTabs.isNotEmpty()) {
+                MemoryStatusBar(
+                    tabs             = activeTabs,
+                    liveSessionCount = liveSessionCount,
+                    modifier         = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                )
             }
 
             Divider(color = Color(0xFF2A2A2A))

@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aweb.browser.data.entity.WorkspaceEntity
 import com.aweb.browser.data.repository.WorkspaceRepository
+import com.aweb.browser.data.repository.SettingsRepository
+import com.aweb.browser.lifecycle.TabLifecycleManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -18,14 +20,11 @@ data class WorkspaceUiState(
     val errorMessage    : String?               = null,
 )
 
-/**
- * Drives workspace list and active workspace.
- * Browser passthrough moved to [TabViewModel] in Phase 3.
- * Session management is now handled per-tab by [TabSessionManager].
- */
 @HiltViewModel
 class WorkspaceViewModel @Inject constructor(
-    private val repo: WorkspaceRepository,
+    private val repo            : WorkspaceRepository,
+    private val settingsRepo    : SettingsRepository,
+    private val lifecycleManager: TabLifecycleManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(WorkspaceUiState())
@@ -37,21 +36,26 @@ class WorkspaceViewModel @Inject constructor(
             repo.workspaces.collect { list ->
                 val active = list.firstOrNull { it.isActive } ?: list.firstOrNull()
                 _uiState.update {
-                    it.copy(
-                        workspaces      = list,
-                        activeWorkspace = active,
-                        isLoading       = false,
-                    )
+                    it.copy(workspaces = list, activeWorkspace = active, isLoading = false)
                 }
             }
+        }
+
+        // Keep TabLifecycleManager in sync with memory mode setting changes
+        viewModelScope.launch {
+            combine(
+                settingsRepo.memoryMode,
+                settingsRepo.maxKeepAliveTabs,
+            ) { mode, maxKa -> mode to maxKa }
+                .distinctUntilChanged()
+                .collect { (mode, maxKa) ->
+                    lifecycleManager.applyMemoryMode(mode.key, maxKa)
+                }
         }
     }
 
     fun switchWorkspace(workspace: WorkspaceEntity) {
-        viewModelScope.launch {
-            repo.switchActive(workspace.id)
-            // TabViewModel observes activeWorkspace from MainActivity and reacts
-        }
+        viewModelScope.launch { repo.switchActive(workspace.id) }
     }
 
     fun showCreateDialog()    = _uiState.update { it.copy(showCreateDialog = true) }
@@ -86,8 +90,7 @@ class WorkspaceViewModel @Inject constructor(
     }
 
     fun clearWorkspaceData(workspace: WorkspaceEntity) {
-        // Actual Gecko storage clearing handled in TabViewModel / TabSessionManager
-        // Here we just dismiss any open dialog state if needed
+        // Gecko context storage clear — handled in TabViewModel/TabSessionManager
     }
 
     fun reorderWorkspaces(orderedIds: List<String>) {
