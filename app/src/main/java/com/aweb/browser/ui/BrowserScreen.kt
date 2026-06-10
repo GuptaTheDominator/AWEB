@@ -2,6 +2,7 @@ package com.aweb.browser.ui
 
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,86 +25,130 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.aweb.browser.ui.workspace.WorkspaceViewModel
+import com.aweb.browser.data.entity.WorkspaceEntity
+import com.aweb.browser.ui.tabs.TabOverviewScreen
+import com.aweb.browser.ui.tabs.TabStrip
+import com.aweb.browser.ui.tabs.TabViewModel
 import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.GeckoView
 
 /**
- * Phase 2 BrowserScreen — workspace-aware.
+ * Phase 3 BrowserScreen — workspace-aware + full tab management.
  *
- * Now receives state from [WorkspaceViewModel] instead of the old single-session
- * BrowserViewModel. The active GeckoSession belongs to the active workspace.
+ * Layout:
+ *  ┌──────────────────────────────────────────────────────────┐
+ *  │  [Toolbar: back/fwd/reload | tab count | url bar]        │
+ *  │  [Tab Strip: scrollable tabs + new tab button]           │
+ *  │  [Progress bar if loading]                               │
+ *  │  [GeckoView — active tab of active workspace]            │
+ *  └──────────────────────────────────────────────────────────┘
  *
- * Layout (tablet):
- *  ┌────────────────────────────────────────────────────────────┐
- *  │  [WorkspaceSidebar 220dp] │ [Toolbar] [ProgressBar]       │
- *  │                           │ [GeckoView - active workspace] │
- *  └────────────────────────────────────────────────────────────┘
- *
- * The sidebar is rendered by MainActivity which owns the full scaffold.
- * BrowserScreen only renders the browser pane (toolbar + web content).
+ * Tab Overview is shown as a full-pane overlay when the tab count is tapped.
  */
 @Composable
 fun BrowserScreen(
-    viewModel : WorkspaceViewModel,
+    tabViewModel      : TabViewModel,
+    activeWorkspace   : WorkspaceEntity?,
 ) {
-    val uiState    by viewModel.uiState.collectAsState()
-    val session    = uiState.activeSession
+    val tabState   by tabViewModel.uiState.collectAsState()
+    val session    = tabState.activeSession
 
-    // Collect browser state flows from the active session
-    val url        by (session?.url        ?: emptyFlow()).collectAsState(initial = "")
-    val loading    by (session?.loading    ?: emptyFlow()).collectAsState(initial = false)
-    val progress   by (session?.progress   ?: emptyFlow()).collectAsState(initial = 0)
-    val canGoBack  by (session?.canGoBack  ?: emptyFlow()).collectAsState(initial = false)
-    val canGoFwd   by (session?.canGoForward ?: emptyFlow()).collectAsState(initial = false)
+    val url        by (session?.url        ?: emptyStateFlow("")).collectAsState()
+    val loading    by (session?.loading    ?: emptyStateFlow(false)).collectAsState()
+    val progress   by (session?.progress   ?: emptyStateFlow(0)).collectAsState()
+    val canGoBack  by (session?.canGoBack  ?: emptyStateFlow(false)).collectAsState()
+    val canGoFwd   by (session?.canGoForward ?: emptyStateFlow(false)).collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0F0F0F))
-    ) {
-        BrowserToolbar(
-            displayUrl   = url.ifEmpty { "duckduckgo.com" },
-            workspaceName = uiState.activeWorkspace?.name ?: "",
-            workspaceColor = uiState.activeWorkspace?.colorHex ?: "#9C6FFF",
-            loading      = loading,
-            canGoBack    = canGoBack,
-            canGoForward = canGoFwd,
-            onNavigate   = { viewModel.loadUrl(it) },
-            onBack       = { viewModel.goBack() },
-            onForward    = { viewModel.goForward() },
-            onReload     = { viewModel.reload() },
-            onStop       = { viewModel.stop() },
-        )
+    val wsColor = activeWorkspace?.colorHex ?: "#9C6FFF"
 
-        if (loading) {
-            LinearProgressIndicator(
-                progress   = { progress / 100f },
-                modifier   = Modifier.fillMaxWidth(),
-                color      = Color(0xFF9C6FFF),
-                trackColor = Color.Transparent,
+    var showTabOverview by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F0F0F))) {
+
+        Column(modifier = Modifier.fillMaxSize()) {
+
+            // ── Toolbar ───────────────────────────────────────────────────
+            BrowserToolbar(
+                displayUrl     = url.ifEmpty { "duckduckgo.com" },
+                workspaceName  = activeWorkspace?.name ?: "",
+                workspaceColor = wsColor,
+                tabCount       = tabState.tabs.size,
+                loading        = loading,
+                canGoBack      = canGoBack,
+                canGoForward   = canGoFwd,
+                onNavigate     = { tabViewModel.loadUrl(it) },
+                onBack         = { tabViewModel.goBack() },
+                onForward      = { tabViewModel.goForward() },
+                onReload       = { tabViewModel.reload() },
+                onStop         = { tabViewModel.stop() },
+                onShowTabs     = { showTabOverview = true },
             )
+
+            // ── Tab Strip ─────────────────────────────────────────────────
+            TabStrip(
+                tabs           = tabState.tabs,
+                activeTabId    = tabState.activeTab?.id,
+                workspaceColor = wsColor,
+                onSelectTab    = { tabViewModel.selectTab(it) },
+                onCloseTab     = { tabViewModel.closeTab(it) },
+                onNewTab       = { tabViewModel.openNewTab() },
+                onPinTab       = { tab, pinned -> tabViewModel.setPinned(tab, pinned) },
+                onKeepAlive    = { tab, ka -> tabViewModel.setKeepAlive(tab, ka) },
+            )
+
+            // ── Progress bar ──────────────────────────────────────────────
+            if (loading) {
+                LinearProgressIndicator(
+                    progress   = { progress / 100f },
+                    modifier   = Modifier.fillMaxWidth(),
+                    color      = runCatching {
+                        Color(android.graphics.Color.parseColor(wsColor))
+                    }.getOrDefault(Color(0xFF9C6FFF)),
+                    trackColor = Color.Transparent,
+                )
+            }
+
+            // ── Web content ───────────────────────────────────────────────
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (session != null) {
+                    GeckoViewComposable(
+                        session  = session.session,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            color = Color(android.graphics.Color.parseColor(wsColor).let {
+                                Color(it)
+                            }),
+                        )
+                    }
+                }
+            }
         }
 
-        // Render active workspace's GeckoSession
-        if (session != null) {
-            GeckoViewComposable(
-                session  = session.session,
-                modifier = Modifier.fillMaxSize(),
+        // ── Tab overview overlay ──────────────────────────────────────────
+        AnimatedVisibility(
+            visible = showTabOverview,
+            enter   = slideInVertically { it } + fadeIn(),
+            exit    = slideOutVertically { it } + fadeOut(),
+        ) {
+            TabOverviewScreen(
+                tabs           = tabState.tabs,
+                activeTabId    = tabState.activeTab?.id,
+                workspaceColor = wsColor,
+                onSelectTab    = { tabViewModel.selectTab(it) },
+                onCloseTab     = { tabViewModel.closeTab(it) },
+                onNewTab       = { tabViewModel.openNewTab() },
+                onPinTab       = { tab, pinned -> tabViewModel.setPinned(tab, pinned) },
+                onKeepAlive    = { tab, ka -> tabViewModel.setKeepAlive(tab, ka) },
+                onCloseAll     = { tabViewModel.closeAllTabs() },
+                onDismiss      = { showTabOverview = false },
+                modifier       = Modifier.fillMaxSize(),
             )
-        } else {
-            // Loading / no workspace state
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color(0xFF9C6FFF))
-            }
         }
     }
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────
-
-@Suppress("UNCHECKED_CAST")
-private fun <T> emptyFlow() = kotlinx.coroutines.flow.MutableStateFlow<T?>(null) as kotlinx.coroutines.flow.StateFlow<T>
 
 // ── Toolbar ────────────────────────────────────────────────────────────────
 
@@ -112,6 +157,7 @@ fun BrowserToolbar(
     displayUrl     : String,
     workspaceName  : String,
     workspaceColor : String,
+    tabCount       : Int,
     loading        : Boolean,
     canGoBack      : Boolean,
     canGoForward   : Boolean,
@@ -120,6 +166,7 @@ fun BrowserToolbar(
     onForward      : () -> Unit,
     onReload       : () -> Unit,
     onStop         : () -> Unit,
+    onShowTabs     : () -> Unit,
 ) {
     var urlFieldValue by remember(displayUrl) { mutableStateOf(TextFieldValue(displayUrl)) }
     var isEditing by remember { mutableStateOf(false) }
@@ -141,7 +188,7 @@ fun BrowserToolbar(
                 .height(54.dp)
                 .padding(horizontal = 4.dp),
         ) {
-            // Workspace colour indicator bar on the left edge of toolbar
+            // Workspace colour accent
             Box(
                 modifier = Modifier
                     .width(3.dp)
@@ -150,19 +197,42 @@ fun BrowserToolbar(
             )
             Spacer(Modifier.width(4.dp))
 
-            IconButton(onClick = onBack, enabled = canGoBack) {
+            // Tab count button
+            FilledTonalButton(
+                onClick = onShowTabs,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = Color(0xFF252525),
+                    contentColor   = Color(0xFFAAAAAA),
+                ),
+                modifier = Modifier.height(30.dp),
+            ) {
+                Text("$tabCount", fontSize = 12.sp, color = Color(0xFFCCCCCC))
+                Spacer(Modifier.width(2.dp))
+                Icon(Icons.Filled.GridView, null, Modifier.size(14.dp))
+            }
+            Spacer(Modifier.width(2.dp))
+
+            // Back / Forward / Reload
+            IconButton(onClick = onBack, enabled = canGoBack, modifier = Modifier.size(40.dp)) {
                 Icon(Icons.Filled.ArrowBack, "Back",
-                    tint = if (canGoBack) Color.White else Color(0xFF555555))
+                    tint = if (canGoBack) Color.White else Color(0xFF444444),
+                    modifier = Modifier.size(20.dp))
             }
-            IconButton(onClick = onForward, enabled = canGoForward) {
+            IconButton(onClick = onForward, enabled = canGoForward, modifier = Modifier.size(40.dp)) {
                 Icon(Icons.Filled.ArrowForward, "Forward",
-                    tint = if (canGoForward) Color.White else Color(0xFF555555))
+                    tint = if (canGoForward) Color.White else Color(0xFF444444),
+                    modifier = Modifier.size(20.dp))
             }
-            IconButton(onClick = if (loading) onStop else onReload) {
+            IconButton(
+                onClick  = if (loading) onStop else onReload,
+                modifier = Modifier.size(40.dp),
+            ) {
                 Icon(
                     if (loading) Icons.Filled.Close else Icons.Filled.Refresh,
                     if (loading) "Stop" else "Reload",
-                    tint = Color.White,
+                    tint     = Color.White,
+                    modifier = Modifier.size(20.dp),
                 )
             }
 
@@ -172,7 +242,7 @@ fun BrowserToolbar(
                 onValueChange   = { urlFieldValue = it },
                 singleLine      = true,
                 placeholder     = {
-                    Text("Search or enter address", color = Color(0xFF666666), fontSize = 14.sp,
+                    Text("Search or enter address", color = Color(0xFF555555), fontSize = 13.sp,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                 },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
@@ -183,29 +253,29 @@ fun BrowserToolbar(
                 }),
                 shape  = RoundedCornerShape(24.dp),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor   = Color(0xFF272727),
-                    unfocusedContainerColor = Color(0xFF222222),
+                    focusedContainerColor   = Color(0xFF2A2A2A),
+                    unfocusedContainerColor = Color(0xFF202020),
                     focusedTextColor        = Color.White,
                     unfocusedTextColor      = Color(0xFFCCCCCC),
                     focusedIndicatorColor   = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
                     cursorColor             = wsColor,
                 ),
-                textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
                 modifier  = Modifier
                     .weight(1f)
-                    .padding(end = 6.dp)
+                    .padding(end = 4.dp)
                     .focusRequester(focusRequester)
                     .onFocusChanged { state ->
                         isEditing = state.isFocused
                         if (state.isFocused) urlFieldValue = TextFieldValue(displayUrl)
-                    }
+                    },
             )
         }
     }
 }
 
-// ── GeckoView composable interop ───────────────────────────────────────────
+// ── GeckoView composable ───────────────────────────────────────────────────
 
 @Composable
 fun GeckoViewComposable(
@@ -231,3 +301,9 @@ fun GeckoViewComposable(
         modifier = modifier,
     )
 }
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+
+@Suppress("UNCHECKED_CAST")
+private fun <T> emptyStateFlow(default: T) =
+    kotlinx.coroutines.flow.MutableStateFlow(default) as kotlinx.coroutines.flow.StateFlow<T>

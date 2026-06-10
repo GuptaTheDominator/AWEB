@@ -31,8 +31,8 @@ Background Layer →  AwebForegroundService, BootReceiver, WorkManager
 |-------|-------------------------------------|--------------|
 | 1     | Basic browser shell (GeckoView)     | ✅ Built      |
 | 2     | Workspace isolation                 | ✅ Built      |
-| 3     | Tabs per workspace                  | 🔲 Next      |
-| 4     | Automatic tab lifecycle             | 🔲 Planned   |
+| 3     | Tabs per workspace                  | ✅ Built      |
+| 4     | Automatic tab lifecycle             | 🔲 Next      |
 | 5     | Keep Alive tabs                     | 🔲 Planned   |
 | 6     | Memory modes + stability            | 🔲 Planned   |
 | 7     | 24/7 background survival (HyperOS) | 🔲 Planned   |

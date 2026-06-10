@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.aweb.browser.data.db.*
 import com.aweb.browser.data.repository.SettingsRepository
+import com.aweb.browser.data.repository.TabRepository
 import com.aweb.browser.data.repository.WorkspaceRepository
 import dagger.Module
 import dagger.Provides
@@ -27,16 +28,21 @@ object DatabaseModule {
             .fallbackToDestructiveMigration()
             .build()
 
-    @Provides fun provideWorkspaceDao(db: AwebDatabase): WorkspaceDao = db.workspaceDao()
-    @Provides fun provideTabDao     (db: AwebDatabase): TabDao       = db.tabDao()
-    @Provides fun provideSettingDao (db: AwebDatabase): AppSettingDao = db.settingDao()
+    // ── DAOs ──────────────────────────────────────────────────────────────
+    @Provides fun provideWorkspaceDao(db: AwebDatabase): WorkspaceDao  = db.workspaceDao()
+    @Provides fun provideTabDao      (db: AwebDatabase): TabDao        = db.tabDao()
+    @Provides fun provideSettingDao  (db: AwebDatabase): AppSettingDao = db.settingDao()
 
-    // Repositories are @Singleton + @Inject constructor so Hilt creates them automatically,
-    // but we expose them here for clarity and testability.
+    // ── Repositories ──────────────────────────────────────────────────────
     @Provides
     @Singleton
     fun provideWorkspaceRepository(dao: WorkspaceDao): WorkspaceRepository =
         WorkspaceRepository(dao)
+
+    @Provides
+    @Singleton
+    fun provideTabRepository(dao: TabDao): TabRepository =
+        TabRepository(dao)
 
     @Provides
     @Singleton
