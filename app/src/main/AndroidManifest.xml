@@ -26,9 +26,11 @@
     <!-- Notifications (Phase 7 foreground service) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Camera / microphone — requested at runtime for browser permissions -->
+    <!-- Camera / microphone / location — requested at runtime -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
         android:name=".AwebApplication"

@@ -36,8 +36,8 @@ Background Layer →  AwebForegroundService, BootReceiver, WorkManager
 | 5     | Keep Alive tabs                     | ✅ Built      |
 | 6     | Memory modes + stability            | ✅ Built      |
 | 7     | 24/7 background survival (HyperOS) | ✅ Built      |
-| 8     | Browser completeness                | 🔲 Next      |
-| 9     | Hardening + personal APK            | 🔲 Planned   |
+| 8     | Browser completeness                | ✅ Built      |
+| 9     | Hardening + personal APK            | 🔲 Next      |
 
 ---
 
@@ -53,6 +53,77 @@ A single-tab browser shell that:
 - Room database schema defined
 - Hilt DI wired
 - Manifest ready for foreground service + boot receiver
+
+## Phase 8 Deliverable
+
+Browser completeness — AWEB is now a full daily-use browser:
+
+**Downloads** (`DownloadHandler`):
+- `GeckoSession.ContentDelegate.onExternalResponse` → Android `DownloadManager`
+- Filename sanitisation + MIME type inference from URL/extension
+- System notification shown for download progress and completion
+- Saves to public `Downloads/` folder
+
+**File Upload** (`FileUploadHandler`):
+- `ContentDelegate.onFilePickerRequest` → emits `PickRequest` event
+- `BrowserScreen` launches `ActivityResultContracts.OpenMultipleDocuments`
+- Selected URIs passed back to Gecko via `FilePickerCallback`
+
+**Fullscreen Video** (`FullscreenHandler`):
+- `ContentDelegate.onFullScreen` → `enterFullscreen()` / `exitFullscreen()`
+- API 30+: `WindowInsetsController` hide/show system bars
+- API 29: `SYSTEM_UI_FLAG_IMMERSIVE_STICKY` fallback
+- `isFullscreen` StateFlow hides toolbar + tab strip in Compose
+
+**Permission System** (`BrowserPermissionHandler`):
+- Camera + Microphone: `PermissionDelegate.onMediaPermissionRequest`
+  → emit event → `BrowserScreen` launches Android runtime permission request
+  → result fed back to `MediaCallback.grant()/reject()`
+- Geolocation: `PERMISSION_GEOLOCATION` → dialog → grant/deny
+- Web push notifications: `PERMISSION_DESKTOP_NOTIFICATION` → dialog
+- Download confirm: before each download, user sees filename/size/type dialog
+
+**Permission Dialogs** (`PermissionDialogs.kt`):
+- Camera/Mic: blue camera icon, "Allow camera and microphone access?"
+- Location: green pin icon
+- Notifications: amber bell icon
+- Download confirm: purple download icon with filename, MIME, size
+
+**Find in Page** (`FindInPageHandler` + `FindInPageBar`):
+- `GeckoSession.finder.find()` with forward/backward
+- `FindResult(current, total, found)` StateFlow
+- Compose bar: ▲ ▼ query field, N/M counter (purple=found, red=not found), ✕
+
+**Desktop/Mobile mode** (`UserAgentManager`):
+- `GeckoSessionSettings.USER_AGENT_MODE_DESKTOP / MOBILE`
+- Toggle reloads page automatically
+- Toolbar overflow shows "Switch to Desktop" / "Switch to Mobile"
+
+**Bookmarks** (`BookmarkEntity`, `BookmarkDao`, `BookmarkRepository`):
+- Room table: id, url, title, created_at; `Index(url)` for fast lookup
+- `BookmarksPanel`: slide-up sheet, newest-first list, tap-to-open, delete button
+- Toolbar star button: ★ filled (amber) = bookmarked, ☆ outline = not
+- `toggleBookmark()` adds or removes in one tap
+- `checkBookmark(url)` called on every URL change
+
+**Toolbar overhaul**:
+- 🔒 / 🔓 security lock icon (green=HTTPS, grey=HTTP) in URL field leading icon
+- ★ bookmark star with amber fill when bookmarked
+- ⋮ overflow menu: Find in page / Desktop mode / Bookmarks
+
+**`GeckoSessionWrapper`** (Phase 8 upgrade):
+- `downloadHandler` + `permissionHandler` + `fileUploadHandler` constructor params
+- `isSecure` StateFlow from `onSecurityChange`
+- `onFullscreenChange` callback lambda wired to `FullscreenHandler`
+- `onExternalResponse` → download handler
+- `onFilePickerRequest` → file upload handler
+
+**`BrowserFeatureViewModel`** (new):
+- Owned by `BrowserScreen` via `hiltViewModel()`
+- Consolidates bookmarks, find, UA, fullscreen, permissions, downloads, file picker
+
+**Database**: version 2 adds `bookmarks` table; `BookmarkDao` provided in `DatabaseModule`
+**DI**: `BrowserModule` provides all 6 new browser-layer singletons
 
 ## Phase 7 Deliverable
 

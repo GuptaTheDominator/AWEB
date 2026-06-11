@@ -3,27 +3,28 @@ package com.aweb.browser.data.db
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.aweb.browser.data.entity.AppSettingEntity
+import com.aweb.browser.data.entity.BookmarkEntity
 import com.aweb.browser.data.entity.TabEntity
 import com.aweb.browser.data.entity.WorkspaceEntity
 
 /**
- * Room database for AWEB.
- *
- * Phase 1: schema defined, no DAOs wired to UI yet.
- * Phase 2: WorkspaceDao used.
- * Phase 3: TabDao used.
+ * Room database — version 2 adds [BookmarkEntity].
+ * fallbackToDestructiveMigration() is in [DatabaseModule] for dev builds.
+ * Replace with a proper migration before signing the final APK.
  */
 @Database(
-    entities = [
+    entities     = [
         WorkspaceEntity::class,
         TabEntity::class,
         AppSettingEntity::class,
+        BookmarkEntity::class,
     ],
-    version  = 1,
+    version      = 2,
     exportSchema = true,
 )
 abstract class AwebDatabase : RoomDatabase() {
-    abstract fun workspaceDao(): WorkspaceDao
-    abstract fun tabDao()      : TabDao
-    abstract fun settingDao()  : AppSettingDao
+    abstract fun workspaceDao() : WorkspaceDao
+    abstract fun tabDao()       : TabDao
+    abstract fun settingDao()   : AppSettingDao
+    abstract fun bookmarkDao()  : BookmarkDao
 }
