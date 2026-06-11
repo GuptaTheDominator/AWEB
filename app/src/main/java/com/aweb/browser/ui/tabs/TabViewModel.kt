@@ -121,19 +121,27 @@ class TabViewModel @Inject constructor(
         }
     }
 
-    /** Creates the GeckoSession, retrying once after a short delay if GeckoRuntime isn't ready yet. */
+    /**
+     * Creates the GeckoSession on the Main thread with retries.
+     * GeckoRuntime and GeckoSession.open() must run on Main — this is enforced
+     * inside GeckoSessionWrapper.open() via Handler, but we also guard here.
+     */
     private suspend fun safeGetSession(
         tab       : TabEntity,
         workspace : WorkspaceEntity,
     ): GeckoSessionWrapper? {
-        repeat(3) { attempt ->
+        repeat(5) { attempt ->
             try {
-                return sessionManager.getOrCreate(tab, workspace)
+                // Switch to Main thread for GeckoView operations
+                return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    sessionManager.getOrCreate(tab, workspace)
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "Session create attempt ${attempt + 1} failed: ${e.message}")
-                delay(300L * (attempt + 1))
+                delay(500L * (attempt + 1))
             }
         }
+        Log.e(TAG, "All session create attempts failed for tab '${tab.title}'")
         return null
     }
 

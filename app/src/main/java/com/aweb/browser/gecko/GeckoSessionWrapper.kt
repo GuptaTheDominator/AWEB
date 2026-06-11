@@ -78,8 +78,22 @@ class GeckoSessionWrapper(
             Log.w(TAG, "open() called with null appContext — skipping")
             return
         }
+
+        // GeckoRuntime.create() and session.open() MUST run on the Main thread.
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            Log.d(TAG, "open() called from background — dispatching to Main")
+            android.os.Handler(android.os.Looper.getMainLooper()).post { open() }
+            return
+        }
+
         try {
             val rt = GeckoRuntimeManager.getOrInit(ctx)
+            if (rt == null) {
+                // Runtime not ready yet — retry after a short delay
+                Log.w(TAG, "GeckoRuntime not ready — will retry in 300ms")
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ open() }, 300)
+                return
+            }
             session.open(rt)
             Log.d(TAG, "Session opened contextId=$contextId")
         } catch (e: Exception) {
