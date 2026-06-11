@@ -23,13 +23,21 @@ android {
         applicationId  = "com.aweb.browser"
         minSdk         = 29
         targetSdk      = 35
-        versionCode    = 9        // Phase 9 — final
-        versionName    = "1.0.0"
+        versionCode    = 10          // bump for ABI-split release
+        versionName    = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ksp {
             arg("room.schemaLocation", "$projectDir/schemas")
+        }
+
+        // ── ABI filters ───────────────────────────────────────────────────
+        // Only include ARM64 native libs in the universal APK.
+        // GeckoView ships x86/x86_64/armeabi-v7a too — stripping them
+        // saves ~450 MB on a Redmi Pad SE 4G (ARM64-only device).
+        ndk {
+            abiFilters += listOf("arm64-v8a")
         }
     }
 
@@ -38,8 +46,8 @@ android {
             if (keystorePropsFile.exists()) {
                 storeFile     = file(keystoreProps["storeFile"] as String)
                 storePassword = keystoreProps["storePassword"] as String
-                keyAlias      = keystoreProps["keyAlias"] as String
-                keyPassword   = keystoreProps["keyPassword"] as String
+                keyAlias      = keystoreProps["keyAlias"]      as String
+                keyPassword   = keystoreProps["keyPassword"]   as String
             }
         }
     }
@@ -58,16 +66,18 @@ android {
             applicationIdSuffix = ".debug"
             isDebuggable         = true
         }
-        debug {
-            applicationIdSuffix = ".debug"
-            isDebuggable         = true
-            signingConfig        = signingConfigs.getByName("debug")
-        }
     }
 
-    // Phase 9: fat APK for personal device — no splits needed
+    // ── ABI splits (CI) ────────────────────────────────────────────────────
+    // Produces one lean APK per ABI instead of one fat APK.
+    // The arm64-v8a APK is what goes onto the Redmi Pad SE 4G.
     splits {
-        abi { isEnable = false; reset() }
+        abi {
+            isEnable         = true
+            reset()
+            include("arm64-v8a")          // only the ABI we need
+            isUniversalApk   = false       // skip the fat universal APK
+        }
     }
 
     compileOptions {
@@ -78,7 +88,19 @@ android {
     buildFeatures { compose = true }
 
     packaging {
-        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+        // Strip unused native debug symbols and duplicate META-INF files
+        resources {
+            excludes += setOf(
+                "/META-INF/{AL2.0,LGPL2.1}",
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE*",
+                "META-INF/NOTICE*",
+            )
+        }
+        // Keep only arm64 .so files — discard everything else GeckoView ships
+        jniLibs {
+            keepDebugSymbols.add("**/*.so")
+        }
     }
 
     // Unit test options
@@ -124,7 +146,7 @@ dependencies {
     implementation(libs.hilt.work)
     implementation(libs.hilt.navigation.compose)
 
-    // GeckoView
+    // GeckoView — nightly-omni (confirmed available on maven.mozilla.org)
     implementation(libs.geckoview)
 
     // Coroutines
