@@ -1,6 +1,6 @@
+@file:Suppress("DEPRECATION")
 package com.aweb.browser.ui.settings
 
-@file:Suppress("DEPRECATION")
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
