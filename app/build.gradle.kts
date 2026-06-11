@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -6,22 +8,39 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+// ── Signing config ─────────────────────────────────────────────────────────
+
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().also { props ->
+    if (keystorePropsFile.exists()) props.load(keystorePropsFile.inputStream())
+}
+
 android {
     namespace  = "com.aweb.browser"
     compileSdk = 35
 
     defaultConfig {
         applicationId  = "com.aweb.browser"
-        minSdk         = 29          // Android 10 — Redmi Pad SE 4G baseline
+        minSdk         = 29
         targetSdk      = 35
-        versionCode    = 1
-        versionName    = "0.1.0-phase1"
+        versionCode    = 9        // Phase 9 — final
+        versionName    = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Room schema export for migrations
         ksp {
             arg("room.schemaLocation", "$projectDir/schemas")
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keystorePropsFile.exists()) {
+                storeFile     = file(keystoreProps["storeFile"] as String)
+                storePassword = keystoreProps["storePassword"] as String
+                keyAlias      = keystoreProps["keyAlias"] as String
+                keyPassword   = keystoreProps["keyPassword"] as String
+            }
         }
     }
 
@@ -31,42 +50,36 @@ android {
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
-            // Sign with a personal key — supply keystore before building release
-            // signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             applicationIdSuffix = ".debug"
             isDebuggable         = true
+            signingConfig        = signingConfigs.getByName("debug")
         }
+    }
+
+    // Phase 9: fat APK for personal device — no splits needed
+    splits {
+        abi { isEnable = false; reset() }
     }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
-    buildFeatures {
-        compose = true
-    }
-
-    // Needed for GeckoView on ARM tablets
-    splits {
-        abi {
-            isEnable    = false  // ship fat APK for personal use
-            reset()
-        }
-    }
+    kotlinOptions { jvmTarget = "17" }
+    buildFeatures { compose = true }
 
     packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
+        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+    }
+
+    // Unit test options
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 }
 
@@ -98,6 +111,9 @@ dependencies {
     // DataStore
     implementation(libs.datastore.prefs)
 
+    // Startup
+    implementation(libs.startup)
+
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
@@ -107,9 +123,13 @@ dependencies {
     // GeckoView
     implementation(libs.geckoview)
 
-    // Startup (for Hilt WorkManager initialiser)
-    implementation(libs.startup)
-
     // Coroutines
     implementation(libs.coroutines.android)
+
+    // Unit tests
+    testImplementation("junit:junit:4.13.2")
+
+    // Android instrumented tests
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }

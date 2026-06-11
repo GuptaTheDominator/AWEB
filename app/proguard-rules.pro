@@ -1,30 +1,54 @@
-# AWEB ProGuard rules
+# ── AWEB ProGuard / R8 rules ──────────────────────────────────────────────
 
-# Keep GeckoView intact — it uses reflection internally
+# GeckoView — uses reflection internally
 -keep class org.mozilla.geckoview.** { *; }
 -dontwarn org.mozilla.geckoview.**
 
-# Keep Room entity and DAO classes
+# Room entities, DAOs, and database
 -keep class com.aweb.browser.data.** { *; }
+-keepclassmembers class com.aweb.browser.data.** { *; }
 
-# Keep Hilt-generated classes
+# Hilt-generated classes
 -keep class dagger.hilt.** { *; }
 -keep class **_HiltModules* { *; }
+-keep class **_MembersInjector { *; }
+-keep class **_Factory { *; }
+-dontwarn dagger.**
 
-# Keep coroutine internals
--keepclassmembers class kotlinx.coroutines.** { *; }
-
-# Keep Compose runtime
--keep class androidx.compose.** { *; }
-
-# Keep WorkManager workers (needed for Hilt injection)
+# WorkManager workers and Hilt injection
 -keep class com.aweb.browser.service.** { *; }
 -keep class androidx.work.** { *; }
 -dontwarn androidx.work.**
 
-# Keep startup library
+# Startup library
 -keep class androidx.startup.** { *; }
 
-# General Android rules
+# Crash recovery — must survive obfuscation
+-keep class com.aweb.browser.crash.** { *; }
+
+# AppState — accessed from multiple threads
+-keep class com.aweb.browser.AppState { *; }
+
+# Kotlin coroutines
+-keepclassmembers class kotlinx.coroutines.** { *; }
+-dontwarn kotlinx.coroutines.**
+
+# Kotlin metadata
+-keep class kotlin.Metadata { *; }
+-keep class kotlin.reflect.** { *; }
+
+# Compose runtime
+-keep class androidx.compose.** { *; }
+-dontwarn androidx.compose.**
+
+# DataStore
+-keep class androidx.datastore.** { *; }
+
+# Keep source file info for crash traces
 -keepattributes *Annotation*
 -keepattributes SourceFile,LineNumberTable
+-keepattributes Signature
+-keepattributes Exceptions
+
+# Rename source file attribute for obfuscated builds
+-renamesourcefileattribute SourceFile

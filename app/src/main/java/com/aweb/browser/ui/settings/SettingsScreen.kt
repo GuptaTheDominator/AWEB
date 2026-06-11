@@ -31,9 +31,10 @@ import com.aweb.browser.data.repository.SearchEngine
  */
 @Composable
 fun SettingsScreen(
-    onDismiss    : () -> Unit,
-    onOpenSetup  : () -> Unit = {},
-    viewModel    : SettingsViewModel = hiltViewModel(),
+    onDismiss         : () -> Unit,
+    onOpenSetup       : () -> Unit = {},
+    onOpenDiagnostics : () -> Unit = {},
+    viewModel         : SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
     var showDashboard by remember { mutableStateOf(false) }
@@ -181,6 +182,42 @@ fun SettingsScreen(
                 null,
                 tint     = Color(0xFF555555),
                 modifier = Modifier.size(18.dp),
+            )
+        }
+
+        // ── Diagnostics ───────────────────────────────────────────────────
+        SectionHeader("Developer")
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF141414))
+                .border(1.dp, Color(0xFF222222), RoundedCornerShape(10.dp))
+                .clickable { onOpenDiagnostics() }
+                .padding(14.dp),
+        ) {
+            Icon(
+                Icons.Filled.BugReport, null,
+                tint     = Color(0xFF666666),
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Diagnostics",
+                    color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    "Session state, isolation check, crash info",
+                    color = Color(0xFF666666), fontSize = 11.sp,
+                )
+            }
+            Icon(
+                Icons.Filled.ChevronRight, null,
+                tint = Color(0xFF555555), modifier = Modifier.size(18.dp),
             )
         }
 

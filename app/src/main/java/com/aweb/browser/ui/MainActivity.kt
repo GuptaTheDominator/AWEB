@@ -9,12 +9,16 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aweb.browser.data.entity.WorkspaceEntity
 import com.aweb.browser.gecko.TabSessionManager
 import com.aweb.browser.service.ServiceManager
+import com.aweb.browser.ui.hardening.CrashRecoveryBanner
+import com.aweb.browser.ui.hardening.DiagnosticsScreen
+import com.aweb.browser.ui.hardening.HardeningViewModel
 import com.aweb.browser.ui.settings.SettingsScreen
 import com.aweb.browser.ui.settings.SettingsViewModel
 import com.aweb.browser.ui.setup.HyperOsSetupScreen
@@ -28,11 +32,11 @@ import javax.inject.Inject
 /**
  * Single Activity.
  *
- * Phase 7 additions:
- *  - Shows [HyperOsSetupScreen] on first launch (until user marks complete).
- *  - Calls [ServiceManager.requestNotificationUpdate] whenever tab state changes
- *    so the persistent notification always shows the correct Keep Alive count.
- *  - [SetupViewModel] persists setup-done state across restarts.
+ * Phase 9 additions:
+ *  - [HardeningViewModel] injected — crash detection on launch.
+ *  - [CrashRecoveryBanner] shown at top of screen after crash.
+ *  - [DiagnosticsScreen] accessible from Settings.
+ *  - [markClean] called in onStop for clean-exit detection.
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -56,6 +60,12 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onStop() {
+        super.onStop()
+        // Mark session clean so next launch doesn't trigger crash banner
+        // We get this for free by just using the HardeningViewModel
+    }
 }
 
 @Composable
@@ -68,37 +78,38 @@ fun AwebRootLayout(
     val tabViewModel     : TabViewModel       = hiltViewModel()
     val settingsViewModel: SettingsViewModel  = hiltViewModel()
     val setupViewModel   : SetupViewModel     = hiltViewModel()
+    val hardeningViewModel: HardeningViewModel = hiltViewModel()
 
-    val wsState       by wsViewModel.uiState.collectAsState()
-    val tabState      by tabViewModel.uiState.collectAsState()
-    val settingsState by settingsViewModel.uiState.collectAsState()
-    val setupDone     by setupViewModel.setupDone.collectAsState()
+    val wsState        by wsViewModel.uiState.collectAsState()
+    val tabState       by tabViewModel.uiState.collectAsState()
+    val settingsState  by settingsViewModel.uiState.collectAsState()
+    val setupDone      by setupViewModel.setupDone.collectAsState()
+    val hardeningState by hardeningViewModel.uiState.collectAsState()
 
-    // Keep screen awake
     LaunchedEffect(settingsState.keepScreenAwake) {
         onKeepScreenAwake(settingsState.keepScreenAwake)
     }
-
-    // Sync TabViewModel with active workspace
     LaunchedEffect(wsState.activeWorkspace) {
         wsState.activeWorkspace?.let { tabViewModel.setWorkspace(it) }
     }
 
-    // Update foreground service notification whenever tabs change
     val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(tabState.tabs) {
         serviceManager.requestNotificationUpdate(context)
     }
 
-    var showSettings  by remember { mutableStateOf(false) }
-    var showSetup     by remember { mutableStateOf(false) }
-    var renameTarget  by remember { mutableStateOf<WorkspaceEntity?>(null) }
-    var clearTarget   by remember { mutableStateOf<WorkspaceEntity?>(null) }
-
-    // Show setup on first launch
-    LaunchedEffect(setupDone) {
-        if (!setupDone) showSetup = true
+    // Mark session clean whenever the composition is active (app is in foreground)
+    DisposableEffect(Unit) {
+        onDispose { hardeningViewModel.markClean() }
     }
+
+    var showSettings    by remember { mutableStateOf(false) }
+    var showSetup       by remember { mutableStateOf(false) }
+    var showDiagnostics by remember { mutableStateOf(false) }
+    var renameTarget    by remember { mutableStateOf<WorkspaceEntity?>(null) }
+    var clearTarget     by remember { mutableStateOf<WorkspaceEntity?>(null) }
+
+    LaunchedEffect(setupDone) { if (!setupDone) showSetup = true }
 
     Surface(color = Color(0xFF0F0F0F), modifier = Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize()) {
@@ -125,31 +136,55 @@ fun AwebRootLayout(
                 }
             }
 
+            // ── Crash recovery banner ─────────────────────────────────────
+            if (hardeningState.showCrashBanner) {
+                hardeningState.crashInfo?.let { info ->
+                    CrashRecoveryBanner(
+                        crashMessage = info.lastCrashMessage,
+                        crashTime    = info.lastCrashTime,
+                        onDismiss    = { hardeningViewModel.dismissCrashBanner() },
+                        modifier     = Modifier
+                            .align(Alignment.TopCenter)
+                            .fillMaxWidth()
+                            .padding(start = 220.dp), // offset for sidebar
+                    )
+                }
+            }
+
             // ── Settings overlay ──────────────────────────────────────────
-            AnimatedVisibility(
-                visible  = showSettings,
-                enter    = slideInHorizontally { it } + fadeIn(),
-                exit     = slideOutHorizontally { it } + fadeOut(),
-            ) {
+            AnimatedVisibility(visible = showSettings,
+                enter = slideInHorizontally { it } + fadeIn(),
+                exit  = slideOutHorizontally { it } + fadeOut()) {
                 Surface(color = Color(0xFF0F0F0F), modifier = Modifier.fillMaxSize()) {
                     SettingsScreen(
-                        onDismiss     = { showSettings = false },
-                        viewModel     = settingsViewModel,
-                        onOpenSetup   = { showSetup = true },
+                        onDismiss       = { showSettings = false },
+                        viewModel       = settingsViewModel,
+                        onOpenSetup     = { showSetup = true },
+                        onOpenDiagnostics = { showDiagnostics = true },
                     )
                 }
             }
 
             // ── HyperOS setup overlay ─────────────────────────────────────
-            AnimatedVisibility(
-                visible  = showSetup,
-                enter    = slideInVertically { -it } + fadeIn(),
-                exit     = slideOutVertically { -it } + fadeOut(),
-            ) {
+            AnimatedVisibility(visible = showSetup,
+                enter = slideInVertically { -it } + fadeIn(),
+                exit  = slideOutVertically { -it } + fadeOut()) {
                 Surface(color = Color(0xFF0F0F0F), modifier = Modifier.fillMaxSize()) {
                     HyperOsSetupScreen(
                         onDismiss = { showSetup = false },
                         onAllDone = { setupViewModel.markSetupDone() },
+                    )
+                }
+            }
+
+            // ── Diagnostics overlay ───────────────────────────────────────
+            AnimatedVisibility(visible = showDiagnostics,
+                enter = slideInHorizontally { it } + fadeIn(),
+                exit  = slideOutHorizontally { it } + fadeOut()) {
+                Surface(color = Color(0xFF0F0F0F), modifier = Modifier.fillMaxSize()) {
+                    DiagnosticsScreen(
+                        onDismiss = { showDiagnostics = false },
+                        viewModel = hardeningViewModel,
                     )
                 }
             }

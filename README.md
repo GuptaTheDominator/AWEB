@@ -37,7 +37,7 @@ Background Layer →  AwebForegroundService, BootReceiver, WorkManager
 | 6     | Memory modes + stability            | ✅ Built      |
 | 7     | 24/7 background survival (HyperOS) | ✅ Built      |
 | 8     | Browser completeness                | ✅ Built      |
-| 9     | Hardening + personal APK            | 🔲 Next      |
+| 9     | Hardening + personal APK            | ✅ Built      |
 
 ---
 
@@ -53,6 +53,73 @@ A single-tab browser shell that:
 - Room database schema defined
 - Hilt DI wired
 - Manifest ready for foreground service + boot receiver
+
+## 🎉 All 9 Phases Complete — AWEB v1.0.0
+
+AWEB is a fully functional personal Android tablet browser for the Redmi Pad SE 4G.
+See [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) to generate your signed APK.
+
+---
+
+## Phase 9 Deliverable
+
+Hardening & Personal APK — production-ready personal build:
+
+**CrashRecoveryManager** (@Singleton):
+- `install()`: registers `Thread.UncaughtExceptionHandler` — writes crash message
+  + timestamp to DataStore before process dies
+- `markSessionStarted()` / `markSessionClean()`: detect abnormal exits on next launch
+- `checkForCrash()`: returns `CrashInfo?` — null if previous session was clean
+- `restoreSession()`: full Room restore for active workspace + tabs on cold start
+- Calls `TabLifecycleManager.onAppRestore()` — only active + keep_alive tabs get
+  live sessions; everything else stays unloaded
+
+**CrashRecoveryBanner** (Compose):
+- Non-intrusive amber banner at top of BrowserScreen after crash
+- Shows crash message + time; auto-dismisses after 8 seconds
+- Positioned to the right of the sidebar (padding-start 220dp)
+
+**HardeningViewModel** (@HiltViewModel):
+- Checks crash state on init, exposes `showCrashBanner` + `crashInfo`
+- `markClean()` called via `DisposableEffect(onDispose)` in `AwebRootLayout`
+- `dismissCrashBanner()` clears crash DataStore entry
+
+**DiagnosticsScreen** (Developer tool via Settings → Diagnostics):
+- App info: package name, version name, version code
+- Session state: active workspace, total tabs, KA tabs, active tab title, context IDs
+- Crash info: last crash message + formatted timestamp
+- Self-tests:
+  - Isolation check: verifies each workspace has unique contextId
+  - Persistence check: verifies Room has workspaces + tabs
+- All results from live `AppState` snapshot — no DB queries needed
+
+**Unit tests** (5 test classes, 25+ assertions):
+- `MemoryPolicyTest`: CONSERVATIVE/BALANCED/PERFORMANCE presets, fromKey(), custom overrides
+- `TabLifecycleStateTest`: all 4 states, DB key round-trip, unknown key fallback
+- `WorkspaceIsolationTest`: contextId uniqueness (50 iterations), UUID validity,
+  tabs within same workspace share contextId, tabs across workspaces differ
+- `DownloadHandlerTest`: filename sanitisation logic (6 scenarios)
+- `SearchEngineTest`: URL building for DDG/Google/Bing, fromString, trim, spaces
+
+**Signed APK build config** (`app/build.gradle.kts`):
+- `signingConfigs.release` reads from `keystore.properties` (git-ignored)
+- `keystore.properties.template` committed with instructions
+- `versionCode = 9`, `versionName = "1.0.0"`
+- `isMinifyEnabled = true`, `isShrinkResources = true`
+- Fat APK (no ABI splits) — ideal for personal sideload
+
+**ProGuard rules** (hardened):
+- GeckoView, Room, Hilt, WorkManager, Startup, Coroutines all kept
+- Crash recovery classes explicitly kept (crash handler must survive obfuscation)
+- `AppState` kept (volatile cross-thread access)
+- Source file + line number attributes kept for readable crash traces
+- `-renamesourcefileattribute SourceFile` for obfuscated builds
+
+**BUILD_INSTRUCTIONS.md**: step-by-step keytool + Gradle commands for personal APK
+
+**SettingsScreen**: Diagnostics entry in Developer section (gear icon → Diagnostics card)
+**AwebApplication**: `crashManager.install()` is now the very first call in `onCreate()`
+**MainActivity**: `DisposableEffect(onDispose)` marks session clean on composition exit
 
 ## Phase 8 Deliverable
 

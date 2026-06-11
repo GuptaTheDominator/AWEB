@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.os.Build
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.aweb.browser.crash.CrashRecoveryManager
 import com.aweb.browser.gecko.GeckoRuntimeManager
 import com.aweb.browser.lifecycle.MemoryPressureReceiver
 import com.aweb.browser.lifecycle.TabLifecycleManager
@@ -17,11 +18,8 @@ import javax.inject.Inject
 /**
  * Application entry-point.
  *
- * Phase 7 additions:
- *  - Implements [Configuration.Provider] so Hilt can inject into WorkManager workers.
- *  - Starts [AwebForegroundService] on app creation via [ServiceManager].
- *  - Schedules [ServiceHealthWorker] via WorkManager.
- *  - Registers [MemoryPressureReceiver] with the system.
+ * Phase 9 additions:
+ *  - [CrashRecoveryManager.install()] registers uncaught exception handler.
  */
 @HiltAndroidApp
 class AwebApplication : Application(), Configuration.Provider {
@@ -29,20 +27,21 @@ class AwebApplication : Application(), Configuration.Provider {
     @Inject lateinit var lifecycleManager : TabLifecycleManager
     @Inject lateinit var serviceManager   : ServiceManager
     @Inject lateinit var workerFactory    : HiltWorkerFactory
+    @Inject lateinit var crashManager     : CrashRecoveryManager
 
-    // Required by Configuration.Provider for Hilt + WorkManager integration
     override val workManagerConfiguration: Configuration
-        get() = Configuration.Builder()
-            .setWorkerFactory(workerFactory)
-            .build()
+        get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
 
     override fun onCreate() {
         super.onCreate()
 
-        // 1. Warm up GeckoView runtime before any Activity draws
+        // 1. Install crash handler — must be first
+        crashManager.install()
+
+        // 2. Warm up GeckoView runtime
         GeckoRuntimeManager.init(this)
 
-        // 2. Register Android memory pressure callbacks
+        // 3. Register memory pressure callbacks
         registerComponentCallbacks(
             MemoryPressureReceiver(
                 lifecycleManager  = lifecycleManager,
@@ -51,13 +50,13 @@ class AwebApplication : Application(), Configuration.Provider {
             )
         )
 
-        // 3. Register foreground service notification channel
+        // 4. Register foreground service notification channel
         createNotificationChannel()
 
-        // 4. Start foreground service — elevates process priority immediately
+        // 5. Start foreground service
         serviceManager.startService(this)
 
-        // 5. Schedule periodic WorkManager health check
+        // 6. Schedule periodic WorkManager health check
         ServiceHealthWorker.schedule(this)
     }
 
