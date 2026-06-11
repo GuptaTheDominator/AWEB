@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- ── Permissions ────────────────────────────────────────────────────── -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -66,11 +67,23 @@
             </intent-filter>
         </activity>
 
-        <!-- Foreground Service (Phase 7) — declared now, started in Phase 7 -->
+        <!-- Foreground Service -->
         <service
             android:name=".service.AwebForegroundService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- Hilt WorkManager initialiser — must be listed here for Hilt injection in workers -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
 
         <!-- Boot Receiver (Phase 7) -->
         <receiver

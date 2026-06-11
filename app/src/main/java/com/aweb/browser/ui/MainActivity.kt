@@ -14,8 +14,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aweb.browser.data.entity.WorkspaceEntity
 import com.aweb.browser.gecko.TabSessionManager
+import com.aweb.browser.service.ServiceManager
 import com.aweb.browser.ui.settings.SettingsScreen
 import com.aweb.browser.ui.settings.SettingsViewModel
+import com.aweb.browser.ui.setup.HyperOsSetupScreen
+import com.aweb.browser.ui.setup.SetupViewModel
 import com.aweb.browser.ui.tabs.TabViewModel
 import com.aweb.browser.ui.theme.AwebTheme
 import com.aweb.browser.ui.workspace.*
@@ -25,15 +28,17 @@ import javax.inject.Inject
 /**
  * Single Activity.
  *
- * Phase 6 additions:
- *  - Observes keepScreenAwake setting → applies/removes FLAG_KEEP_SCREEN_ON
- *  - Settings screen integrated as a full-pane animated overlay
- *  - Settings gear button added to WorkspaceSidebar bottom
+ * Phase 7 additions:
+ *  - Shows [HyperOsSetupScreen] on first launch (until user marks complete).
+ *  - Calls [ServiceManager.requestNotificationUpdate] whenever tab state changes
+ *    so the persistent notification always shows the correct Keep Alive count.
+ *  - [SetupViewModel] persists setup-done state across restarts.
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var tabSessionManager: TabSessionManager
+    @Inject lateinit var serviceManager   : ServiceManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,12 +47,10 @@ class MainActivity : ComponentActivity() {
             AwebTheme {
                 AwebRootLayout(
                     tabSessionManager = tabSessionManager,
+                    serviceManager    = serviceManager,
                     onKeepScreenAwake = { keep ->
-                        if (keep) {
-                            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                        } else {
-                            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                        }
+                        if (keep) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        else      window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                     },
                 )
             }
@@ -58,34 +61,49 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AwebRootLayout(
     tabSessionManager : TabSessionManager,
+    serviceManager    : ServiceManager,
     onKeepScreenAwake : (Boolean) -> Unit,
 ) {
     val wsViewModel      : WorkspaceViewModel = hiltViewModel()
     val tabViewModel     : TabViewModel       = hiltViewModel()
     val settingsViewModel: SettingsViewModel  = hiltViewModel()
+    val setupViewModel   : SetupViewModel     = hiltViewModel()
 
     val wsState       by wsViewModel.uiState.collectAsState()
     val tabState      by tabViewModel.uiState.collectAsState()
     val settingsState by settingsViewModel.uiState.collectAsState()
+    val setupDone     by setupViewModel.setupDone.collectAsState()
 
-    // Keep screen awake flag — reacts to settings change
+    // Keep screen awake
     LaunchedEffect(settingsState.keepScreenAwake) {
         onKeepScreenAwake(settingsState.keepScreenAwake)
     }
 
-    // Keep TabViewModel in sync with active workspace
+    // Sync TabViewModel with active workspace
     LaunchedEffect(wsState.activeWorkspace) {
         wsState.activeWorkspace?.let { tabViewModel.setWorkspace(it) }
     }
 
-    var showSettings by remember { mutableStateOf(false) }
-    var renameTarget by remember { mutableStateOf<WorkspaceEntity?>(null) }
-    var clearTarget  by remember { mutableStateOf<WorkspaceEntity?>(null) }
+    // Update foreground service notification whenever tabs change
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(tabState.tabs) {
+        serviceManager.requestNotificationUpdate(context)
+    }
+
+    var showSettings  by remember { mutableStateOf(false) }
+    var showSetup     by remember { mutableStateOf(false) }
+    var renameTarget  by remember { mutableStateOf<WorkspaceEntity?>(null) }
+    var clearTarget   by remember { mutableStateOf<WorkspaceEntity?>(null) }
+
+    // Show setup on first launch
+    LaunchedEffect(setupDone) {
+        if (!setupDone) showSetup = true
+    }
 
     Surface(color = Color(0xFF0F0F0F), modifier = Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize()) {
 
-            // ── Main layout: sidebar + browser ────────────────────────────
+            // ── Main layout ───────────────────────────────────────────────
             Row(Modifier.fillMaxSize()) {
                 WorkspaceSidebar(
                     workspaces       = wsState.workspaces,
@@ -99,7 +117,6 @@ fun AwebRootLayout(
                     onClearData      = { clearTarget = it },
                     onOpenSettings   = { showSettings = true },
                 )
-
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     BrowserScreen(
                         tabViewModel    = tabViewModel,
@@ -110,17 +127,29 @@ fun AwebRootLayout(
 
             // ── Settings overlay ──────────────────────────────────────────
             AnimatedVisibility(
-                visible = showSettings,
-                enter   = slideInHorizontally { it } + fadeIn(),
-                exit    = slideOutHorizontally { it } + fadeOut(),
+                visible  = showSettings,
+                enter    = slideInHorizontally { it } + fadeIn(),
+                exit     = slideOutHorizontally { it } + fadeOut(),
             ) {
-                Surface(
-                    color    = Color(0xFF0F0F0F),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
+                Surface(color = Color(0xFF0F0F0F), modifier = Modifier.fillMaxSize()) {
                     SettingsScreen(
-                        onDismiss = { showSettings = false },
-                        viewModel = settingsViewModel,
+                        onDismiss     = { showSettings = false },
+                        viewModel     = settingsViewModel,
+                        onOpenSetup   = { showSetup = true },
+                    )
+                }
+            }
+
+            // ── HyperOS setup overlay ─────────────────────────────────────
+            AnimatedVisibility(
+                visible  = showSetup,
+                enter    = slideInVertically { -it } + fadeIn(),
+                exit     = slideOutVertically { -it } + fadeOut(),
+            ) {
+                Surface(color = Color(0xFF0F0F0F), modifier = Modifier.fillMaxSize()) {
+                    HyperOsSetupScreen(
+                        onDismiss = { showSetup = false },
+                        onAllDone = { setupViewModel.markSetupDone() },
                     )
                 }
             }
@@ -134,7 +163,6 @@ fun AwebRootLayout(
             onDismiss = { wsViewModel.dismissCreateDialog() },
         )
     }
-
     renameTarget?.let { ws ->
         RenameWorkspaceDialog(
             workspace = ws,
@@ -142,7 +170,6 @@ fun AwebRootLayout(
             onDismiss = { renameTarget = null },
         )
     }
-
     wsState.showDeleteDialog?.let { ws ->
         DeleteWorkspaceDialog(
             workspace = ws,
@@ -150,7 +177,6 @@ fun AwebRootLayout(
             onDismiss = { wsViewModel.dismissDeleteDialog() },
         )
     }
-
     clearTarget?.let { ws ->
         ClearWorkspaceDataDialog(
             workspace = ws,

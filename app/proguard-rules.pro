@@ -17,6 +17,14 @@
 # Keep Compose runtime
 -keep class androidx.compose.** { *; }
 
+# Keep WorkManager workers (needed for Hilt injection)
+-keep class com.aweb.browser.service.** { *; }
+-keep class androidx.work.** { *; }
+-dontwarn androidx.work.**
+
+# Keep startup library
+-keep class androidx.startup.** { *; }
+
 # General Android rules
 -keepattributes *Annotation*
 -keepattributes SourceFile,LineNumberTable

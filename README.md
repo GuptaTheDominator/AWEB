@@ -35,8 +35,8 @@ Background Layer →  AwebForegroundService, BootReceiver, WorkManager
 | 4     | Automatic tab lifecycle             | ✅ Built      |
 | 5     | Keep Alive tabs                     | ✅ Built      |
 | 6     | Memory modes + stability            | ✅ Built      |
-| 7     | 24/7 background survival (HyperOS) | 🔲 Next      |
-| 8     | Browser completeness                | 🔲 Planned   |
+| 7     | 24/7 background survival (HyperOS) | ✅ Built      |
+| 8     | Browser completeness                | 🔲 Next      |
 | 9     | Hardening + personal APK            | 🔲 Planned   |
 
 ---
@@ -53,6 +53,62 @@ A single-tab browser shell that:
 - Room database schema defined
 - Hilt DI wired
 - Manifest ready for foreground service + boot receiver
+
+## Phase 7 Deliverable
+
+24/7 Background Survival — full foreground service + boot recovery + HyperOS guide:
+
+**AwebForegroundService** (completed from stub):
+- `startForeground()` with silent low-priority notification immediately on `onCreate()`
+- Notification shows dynamic Keep Alive count + total tabs from `AppState`
+- `ACTION_UPDATE_NOTIF`: updates notification in-place without restarting the service
+- `ACTION_STOP_SERVICE`: clean shutdown intent
+- `onTaskRemoved()`: user swiped from recents → schedules `ServiceHealthWorker` restart
+- `START_STICKY`: Android restarts the service after process kill
+
+**BootReceiver** (completed from stub):
+- Handles `ACTION_BOOT_COMPLETED` + `ACTION_MY_PACKAGE_REPLACED`
+- Starts `AwebForegroundService` via `startForegroundService()` (API 26+)
+- Re-schedules `ServiceHealthWorker` (WorkManager tasks don't always survive reboot)
+
+**ServiceHealthWorker** (`@HiltWorker`, PeriodicWorkRequest):
+- Runs every 15 minutes (minimum WorkManager interval)
+- `doWork()`: calls `startForegroundService()` to ensure service is alive
+- Sends `ACTION_UPDATE_NOTIF` to refresh notification Keep Alive count
+- `schedule()`: `enqueueUniquePeriodicWork(KEEP)` — idempotent, safe to call repeatedly
+- `cancel()`: clean shutdown helper
+
+**ServiceManager** (@Singleton):
+- `startService()`, `stopService()`, `requestNotificationUpdate()` — single place
+  for all service intent-building, safe to inject anywhere
+
+**AwebApplication** (upgraded):
+- Implements `Configuration.Provider` with `HiltWorkerFactory` for Hilt+WorkManager
+- Startup sequence: GeckoRuntime → MemoryPressureReceiver → NotificationChannel →
+  startService() → ServiceHealthWorker.schedule()
+
+**HyperOsSetupScreen** (new, 6-step guide):
+- Step 1: Autostart → deep-link to App Details
+- Step 2: Battery Optimization → `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`
+- Step 3: HyperOS Battery Saver No Restrictions → App Details (manual)
+- Step 4: Lock in Recent Apps → manual instruction (no deep link possible)
+- Step 5: Allow Notifications → `ACTION_APP_NOTIFICATION_SETTINGS`
+- Step 6: Keep Screen Awake (Optional) → AWEB Settings toggle
+- Each step: expandable card, "Open Settings" deep-link, "Mark done" toggle
+- Cap progress: `done / total required` with green checkmark when complete
+- "All done — AWEB is ready!" button enabled only when all required steps checked
+
+**SetupViewModel**: DataStore-persisted `setup_done` flag; live `batteryOptimizationIgnored` check
+
+**MainActivity** (upgraded):
+- Injects `ServiceManager`; `LaunchedEffect(tabState.tabs)` → `requestNotificationUpdate()`
+  so notification count stays accurate as tabs open/close
+- `LaunchedEffect(setupDone)` → shows `HyperOsSetupScreen` on first ever launch
+- Setup screen added as `slideInVertically` animated overlay (dismissible)
+- Settings screen now has "HyperOS Setup Guide" row → tappable card → opens setup screen
+
+**Manifest**: `xmlns:tools` added; Hilt WorkManager `InitializationProvider` with
+`tools:node="remove"` on default WorkManager initialiser (required for custom init)
 
 ## Phase 6 Deliverable
 

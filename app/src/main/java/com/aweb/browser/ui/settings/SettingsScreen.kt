@@ -31,8 +31,9 @@ import com.aweb.browser.data.repository.SearchEngine
  */
 @Composable
 fun SettingsScreen(
-    onDismiss: () -> Unit,
-    viewModel: SettingsViewModel = hiltViewModel(),
+    onDismiss    : () -> Unit,
+    onOpenSetup  : () -> Unit = {},
+    viewModel    : SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
     var showDashboard by remember { mutableStateOf(false) }
@@ -140,6 +141,48 @@ fun SettingsScreen(
             checked     = state.keepScreenAwake,
             onToggle    = { viewModel.setKeepScreenAwake(it) },
         )
+
+        // ── 6. HyperOS Setup ──────────────────────────────────────────────
+        SectionHeader("HyperOS Survival")
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF141414))
+                .border(1.dp, Color(0xFF222222), RoundedCornerShape(10.dp))
+                .clickable { onOpenSetup() }
+                .padding(14.dp),
+        ) {
+            Icon(
+                Icons.Filled.Shield,
+                null,
+                tint     = Color(0xFF9C6FFF),
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "HyperOS Setup Guide",
+                    color      = Color.White,
+                    fontSize   = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    "Autostart, battery, recents, notifications",
+                    color    = Color(0xFF666666),
+                    fontSize = 11.sp,
+                )
+            }
+            Icon(
+                Icons.Filled.ChevronRight,
+                null,
+                tint     = Color(0xFF555555),
+                modifier = Modifier.size(18.dp),
+            )
+        }
 
         Spacer(Modifier.height(40.dp))
     }

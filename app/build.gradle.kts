@@ -107,6 +107,9 @@ dependencies {
     // GeckoView
     implementation(libs.geckoview)
 
+    // Startup (for Hilt WorkManager initialiser)
+    implementation(libs.startup)
+
     // Coroutines
     implementation(libs.coroutines.android)
 }

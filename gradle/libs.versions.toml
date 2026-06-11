@@ -12,6 +12,7 @@ geckoview           = "128.0.20240606095445"   # latest stable channel
 coroutines          = "1.8.1"
 lifecycle           = "2.8.2"
 datastore           = "1.1.1"
+startup             = "1.1.1"
 
 [libraries]
 # AndroidX core
@@ -49,6 +50,7 @@ hilt-navigation-compose        = { group = "androidx.hilt",            name = "h
 
 # GeckoView
 geckoview                      = { group = "org.mozilla.geckoview",    name = "geckoview-default",     version.ref = "geckoview" }
+startup                        = { group = "androidx.startup",          name = "startup-runtime",        version.ref = "startup" }
 
 # Coroutines
 coroutines-android             = { group = "org.jetbrains.kotlinx",    name = "kotlinx-coroutines-android", version.ref = "coroutines" }

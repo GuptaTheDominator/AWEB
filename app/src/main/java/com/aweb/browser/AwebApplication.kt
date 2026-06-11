@@ -4,35 +4,45 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import androidx.hilt.work.HiltWorkerFactory
+import androidx.work.Configuration
 import com.aweb.browser.gecko.GeckoRuntimeManager
 import com.aweb.browser.lifecycle.MemoryPressureReceiver
 import com.aweb.browser.lifecycle.TabLifecycleManager
+import com.aweb.browser.service.ServiceHealthWorker
+import com.aweb.browser.service.ServiceManager
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
 /**
  * Application entry-point.
  *
- * Phase 4 additions:
- *  - Injects [TabLifecycleManager] (Hilt singleton)
- *  - Registers [MemoryPressureReceiver] with the system
- *
- * The receiver needs live tab/workspace snapshots; these are provided
- * by [AppState] which is a lightweight in-process singleton updated
- * by TabViewModel whenever the state changes.
+ * Phase 7 additions:
+ *  - Implements [Configuration.Provider] so Hilt can inject into WorkManager workers.
+ *  - Starts [AwebForegroundService] on app creation via [ServiceManager].
+ *  - Schedules [ServiceHealthWorker] via WorkManager.
+ *  - Registers [MemoryPressureReceiver] with the system.
  */
 @HiltAndroidApp
-class AwebApplication : Application() {
+class AwebApplication : Application(), Configuration.Provider {
 
-    @Inject lateinit var lifecycleManager: TabLifecycleManager
+    @Inject lateinit var lifecycleManager : TabLifecycleManager
+    @Inject lateinit var serviceManager   : ServiceManager
+    @Inject lateinit var workerFactory    : HiltWorkerFactory
+
+    // Required by Configuration.Provider for Hilt + WorkManager integration
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setWorkerFactory(workerFactory)
+            .build()
 
     override fun onCreate() {
         super.onCreate()
 
-        // Warm up GeckoView runtime before any Activity draws
+        // 1. Warm up GeckoView runtime before any Activity draws
         GeckoRuntimeManager.init(this)
 
-        // Register Android memory pressure callbacks
+        // 2. Register Android memory pressure callbacks
         registerComponentCallbacks(
             MemoryPressureReceiver(
                 lifecycleManager  = lifecycleManager,
@@ -41,8 +51,14 @@ class AwebApplication : Application() {
             )
         )
 
-        // Register foreground service notification channel
+        // 3. Register foreground service notification channel
         createNotificationChannel()
+
+        // 4. Start foreground service — elevates process priority immediately
+        serviceManager.startService(this)
+
+        // 5. Schedule periodic WorkManager health check
+        ServiceHealthWorker.schedule(this)
     }
 
     private fun createNotificationChannel() {
