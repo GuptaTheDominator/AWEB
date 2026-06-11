@@ -28,7 +28,6 @@ class AwebApplication : Application(), Configuration.Provider {
         get() = try {
             Configuration.Builder().setWorkerFactory(workerFactory).setMinimumLoggingLevel(Log.INFO).build()
         } catch (e: UninitializedPropertyAccessException) {
-            Log.e("AwebApp", "workerFactory not yet injected")
             Configuration.Builder().setMinimumLoggingLevel(Log.INFO).build()
         }
 
@@ -36,24 +35,39 @@ class AwebApplication : Application(), Configuration.Provider {
         super.onCreate()
         installExceptionLogger()
         createNotificationChannel()
+
+        // Start foreground service IMMEDIATELY and SYNCHRONOUSLY so the process
+        // gets elevated oom_score_adj BEFORE LMKD can kill us.
+        // From the logcat: AWEB was killed with oom_score_adj=915 (background)
+        // because the foreground service was not yet running.
+        // A foreground service sets oom_score_adj to ~100, making LMKD skip us.
+        try {
+            serviceManager.startService(this)
+            Log.i("AwebApp", "Foreground service started — process priority elevated")
+        } catch (e: Exception) {
+            Log.e("AwebApp", "Service start failed: ${e.message}")
+        }
+
+        // Register memory pressure callbacks
         try {
             registerComponentCallbacks(MemoryPressureReceiver(
                 lifecycleManager, { AppState.currentTabs }, { AppState.currentWorkspace }))
         } catch (e: Exception) { Log.e("AwebApp", "callbacks: ${e.message}") }
+
+        // GeckoRuntime.create() MUST run on the Main thread.
+        // Post after current frame so UI renders before Gecko engine starts.
         mainHandler.post {
             try { GeckoRuntimeManager.init(applicationContext) }
             catch (e: Exception) {
-                Log.e("AwebApp", "GeckoRuntime: ${e.message}", e)
+                Log.e("AwebApp", "GeckoRuntime init failed: ${e.message}", e)
                 mainHandler.postDelayed({
                     try { GeckoRuntimeManager.init(applicationContext) }
-                    catch (e2: Exception) { Log.e("AwebApp", "retry: ${e2.message}") }
+                    catch (e2: Exception) { Log.e("AwebApp", "GeckoRuntime retry: ${e2.message}") }
                 }, 1500)
             }
-            try { serviceManager.startService(applicationContext) }
-            catch (e: Exception) { Log.w("AwebApp", "svc: ${e.message}") }
             mainHandler.postDelayed({
                 try { ServiceHealthWorker.schedule(applicationContext) }
-                catch (e: Exception) { Log.w("AwebApp", "wm: ${e.message}") }
+                catch (e: Exception) { Log.w("AwebApp", "WorkManager: ${e.message}") }
             }, 2000)
         }
     }
