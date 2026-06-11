@@ -1,4 +1,4 @@
-# Android / Gradle
+# ── Android / Gradle ──────────────────────────────────────────────────────
 .gradle/
 .idea/
 *.iml
@@ -6,17 +6,20 @@ local.properties
 build/
 app/build/
 app/schemas/
+captures/
+.externalNativeBuild/
+.cxx/
 
-# Keystore — never commit signing keys
+# ── Signing — NEVER COMMIT ────────────────────────────────────────────────
 *.jks
 *.keystore
 keystore.properties
 
-# OS
+# ── OS ────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 
-# Kotlin / Java compiled
+# ── Compiled output ───────────────────────────────────────────────────────
 *.class
 *.aar
 
@@ -24,10 +27,5 @@ Thumbs.db
 *.jar
 !gradle/wrapper/gradle-wrapper.jar
 
-# Logs
+# ── Logs ──────────────────────────────────────────────────────────────────
 *.log
-
-# Android Studio
-captures/
-.externalNativeBuild/
-.cxx/
