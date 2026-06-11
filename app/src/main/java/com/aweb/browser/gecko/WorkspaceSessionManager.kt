@@ -7,55 +7,22 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Phase 2 workspace-level session manager.
- * Kept for backward-compat; Phase 3+ uses TabSessionManager per-tab.
- */
 @Singleton
 class WorkspaceSessionManager @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
-    companion object {
-        private const val TAG = "WorkspaceSessionManager"
-    }
-
+    companion object { private const val TAG = "WsSessionMgr" }
     private val sessions = mutableMapOf<String, GeckoSessionWrapper>()
-
     fun getOrCreate(workspace: WorkspaceEntity): GeckoSessionWrapper {
         return sessions.getOrPut(workspace.id) {
-            Log.i(TAG, "Creating session for workspace '${workspace.name}'")
-            GeckoSessionWrapper(
-                contextId  = workspace.contextId,
-                appContext = context,
-            ).also { it.open() }
+            Log.i(TAG, "Creating ws session: ${workspace.name}")
+            GeckoSessionWrapper(contextId = workspace.contextId, appContext = context).also { it.open() }
         }
     }
-
-    fun get(workspaceId: String): GeckoSessionWrapper? = sessions[workspaceId]
-
-    fun pauseAllExcept(activeWorkspaceId: String) {
-        sessions.forEach { (id, wrapper) ->
-            if (id != activeWorkspaceId) wrapper.session.setActive(false)
-        }
-    }
-
-    fun resume(workspaceId: String) {
-        sessions[workspaceId]?.session?.setActive(true)
-    }
-
-    fun closeAndRemove(workspaceId: String) {
-        sessions.remove(workspaceId)?.close()
-        Log.i(TAG, "Closed session for workspace $workspaceId")
-    }
-
-    fun clearWorkspaceData(workspace: WorkspaceEntity) {
-        closeAndRemove(workspace.id)
-        getOrCreate(workspace)
-        Log.i(TAG, "Cleared data for workspace '${workspace.name}'")
-    }
-
-    fun closeAll() {
-        sessions.values.forEach { it.close() }
-        sessions.clear()
-    }
+    fun get(wsId: String): GeckoSessionWrapper? = sessions[wsId]
+    fun pauseAllExcept(activeId: String) { sessions.forEach { (id, w) -> if (id != activeId) try { w.session.setActive(false) } catch (_: Exception) {} } }
+    fun resume(wsId: String) { try { sessions[wsId]?.session?.setActive(true) } catch (_: Exception) {} }
+    fun closeAndRemove(wsId: String) { sessions.remove(wsId)?.close() }
+    fun clearWorkspaceData(ws: WorkspaceEntity) { closeAndRemove(ws.id); getOrCreate(ws) }
+    fun closeAll() { sessions.values.forEach { try { it.close() } catch (_: Exception) {} }; sessions.clear() }
 }

@@ -1,3 +1,32 @@
+## [v1.0.5] — 2026-06-11
+
+### Fixed — startup crash (UI shows for 1 second then closes)
+
+Deep static analysis found 5 additional crash causes on top of v1.0.4:
+
+1. **workManagerConfiguration getter** — accessed `workerFactory` (lateinit var)
+   without a guard. If WorkManager somehow calls this getter before Hilt injection,
+   it throws UninitializedPropertyAccessException.
+   FIX: Wrapped in try-catch, returns a default Configuration as fallback.
+
+2. **loadUrl() race condition** — `GeckoSessionWrapper.loadUrl()` called `open()`
+   (which dispatches to Main thread via Handler.post asynchronously), then
+   immediately called `session.loadUri()` on the current thread. Since `open()`
+   hadn't executed yet, `loadUri()` threw IllegalStateException: session not open.
+   FIX: If session not open, `loadUrl()` calls `open()` then schedules
+   `loadUri()` via `mainHandler.postDelayed(500ms)` ensuring open completes first.
+
+3. **safeGetSession retry count too low** — 5 retries × 500ms = 2.5s max wait.
+   GeckoRuntime can take longer on first cold start on a real device.
+   FIX: Increased to 8 retries with 300ms × (attempt+1) progressive backoff.
+
+4. **TabSessionManager missing Context** — constructor wasn't passing appContext
+   to GeckoSessionWrapper in some code paths.
+   FIX: All GeckoSessionWrapper constructors now receive appContext consistently.
+
+5. **GeckoSessionWrapper mainHandler** — repeated `Handler(Looper.getMainLooper())`
+   creation. Moved to a single field to avoid overhead.
+
 # Changelog
 
 All notable changes to AWEB are documented here.
