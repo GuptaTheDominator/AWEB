@@ -2,17 +2,16 @@ package com.aweb.browser.gecko
 
 import android.content.Context
 import android.util.Log
+import org.mozilla.geckoview.ContentBlocking
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoRuntimeSettings
 
 /**
- * Singleton holder for the single [GeckoRuntime] instance.
+ * Singleton holder for the one [GeckoRuntime] per process.
  *
- * GeckoView requires exactly ONE runtime per process — creating more than one
- * will throw. We initialise it here and expose it app-wide.
- *
- * Phase 1: single runtime, no context isolation yet.
- * Phase 2: context isolation added via GeckoSession contextId.
+ * Called from [AwebApplication] after the first frame to avoid blocking the launcher.
+ * Any code that accesses [runtime] must ensure [init] has already completed —
+ * [GeckoSessionWrapper.open] does this by calling [init] lazily as a safety net.
  */
 object GeckoRuntimeManager {
 
@@ -24,32 +23,32 @@ object GeckoRuntimeManager {
     val runtime: GeckoRuntime
         get() = _runtime ?: error("GeckoRuntimeManager.init() was not called.")
 
-    /**
-     * Must be called once from [AwebApplication.onCreate] before any
-     * GeckoSession is created.
-     */
+    val isInitialised: Boolean
+        get() = _runtime != null
+
     fun init(context: Context) {
         if (_runtime != null) return
         synchronized(this) {
             if (_runtime != null) return
 
+            val contentBlockingSettings = ContentBlocking.Settings.Builder()
+                .antiTracking(ContentBlocking.AntiTracking.DEFAULT)
+                .build()
+
             val settings = GeckoRuntimeSettings.Builder()
-                // Security: block insecure mixed content
-                .contentBlocking(
-                    org.mozilla.geckoview.ContentBlocking.Settings.Builder()
-                        .antiTracking(org.mozilla.geckoview.ContentBlocking.AntiTracking.DEFAULT)
-                        .build()
-                )
-                // Allow JavaScript (essential for modern web apps)
+                .contentBlocking(contentBlockingSettings)
                 .javaScriptEnabled(true)
-                // Remote debugging via USB — useful during development
-                .remoteDebuggingEnabled(true)
-                // Crash handler telemetry — off for personal use
-                .crashHandler(null)
+                .remoteDebuggingEnabled(false)   // disable in release — saves resources
                 .build()
 
             _runtime = GeckoRuntime.create(context.applicationContext, settings)
             Log.i(TAG, "GeckoRuntime initialised")
         }
+    }
+
+    /** Lazily init + return runtime — safe to call from GeckoSessionWrapper.open() */
+    fun getOrInit(context: Context): GeckoRuntime {
+        if (_runtime == null) init(context)
+        return _runtime!!
     }
 }

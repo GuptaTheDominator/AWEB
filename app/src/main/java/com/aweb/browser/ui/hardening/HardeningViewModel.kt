@@ -11,8 +11,8 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class HardeningUiState(
-    val crashInfo        : CrashRecoveryManager.CrashInfo? = null,
-    val showCrashBanner  : Boolean                         = false,
+    val crashInfo       : CrashRecoveryManager.CrashInfo? = null,
+    val showCrashBanner : Boolean                         = false,
 )
 
 @HiltViewModel
@@ -25,18 +25,25 @@ class HardeningViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val info = crashManager.checkForCrash()
-            if (info != null) {
-                _uiState.value = HardeningUiState(crashInfo = info, showCrashBanner = true)
+            try {
+                val info = crashManager.checkForCrash()
+                if (info != null) {
+                    _uiState.value = HardeningUiState(crashInfo = info, showCrashBanner = true)
+                }
+                crashManager.markSessionStarted()
+            } catch (e: Exception) {
+                // Never let crash detection itself crash the app
+                android.util.Log.w("HardeningViewModel", "Init error: ${e.message}")
             }
-            crashManager.markSessionStarted()
         }
     }
 
     fun dismissCrashBanner() {
         crashManager.clearCrashInfo()
-        _uiState.value = _uiState.value.copy(showCrashBanner = false, crashInfo = null)
+        _uiState.value = HardeningUiState()
     }
 
-    fun markClean() = crashManager.markSessionClean()
+    fun markClean() {
+        try { crashManager.markSessionClean() } catch (_: Exception) {}
+    }
 }

@@ -34,27 +34,31 @@ class SettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            combine(
-                settingsRepo.memoryMode,
-                settingsRepo.maxRecentLiveTabs,
-                settingsRepo.maxKeepAliveTabs,
-                settingsRepo.defaultHomepage,
-                settingsRepo.defaultSearchEngine,
-            ) { mode, recent, ka, home, search ->
-                SettingsUiState(
-                    memoryMode        = mode,
-                    maxRecentLiveTabs = recent,
-                    maxKeepAliveTabs  = ka,
-                    defaultHomepage   = home,
-                    defaultSearch     = search,
-                    liveSessionCount  = sessionManager.liveSessionCount,
-                )
-            }.combine(settingsRepo.keepScreenAwake) { state, awake ->
-                state.copy(keepScreenAwake = awake)
-            }.collect { state ->
-                _uiState.value = state.copy(
-                    liveSessionCount = sessionManager.liveSessionCount
-                )
+            try {
+                combine(
+                    settingsRepo.memoryMode,
+                    settingsRepo.maxRecentLiveTabs,
+                    settingsRepo.maxKeepAliveTabs,
+                    settingsRepo.defaultHomepage,
+                    settingsRepo.defaultSearchEngine,
+                ) { mode, recent, ka, home, search ->
+                    SettingsUiState(
+                        memoryMode        = mode,
+                        maxRecentLiveTabs = recent,
+                        maxKeepAliveTabs  = ka,
+                        defaultHomepage   = home,
+                        defaultSearch     = search,
+                        liveSessionCount  = sessionManager.liveSessionCount,
+                    )
+                }.combine(settingsRepo.keepScreenAwake) { state, awake ->
+                    state.copy(keepScreenAwake = awake)
+                }.catch { e ->
+                    android.util.Log.w("SettingsViewModel", "Settings flow error: ${e.message}")
+                }.collect { state ->
+                    _uiState.value = state.copy(liveSessionCount = sessionManager.liveSessionCount)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("SettingsViewModel", "Init error: ${e.message}")
             }
         }
     }

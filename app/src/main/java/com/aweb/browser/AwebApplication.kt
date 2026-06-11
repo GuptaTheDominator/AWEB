@@ -4,9 +4,10 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
-import com.aweb.browser.crash.CrashRecoveryManager
 import com.aweb.browser.gecko.GeckoRuntimeManager
 import com.aweb.browser.lifecycle.MemoryPressureReceiver
 import com.aweb.browser.lifecycle.TabLifecycleManager
@@ -18,8 +19,9 @@ import javax.inject.Inject
 /**
  * Application entry-point.
  *
- * Phase 9 additions:
- *  - [CrashRecoveryManager.install()] registers uncaught exception handler.
+ * IMPORTANT: Keep onCreate() as fast as possible.
+ * Heavy singletons (GeckoRuntime, WorkManager, foreground service) are
+ * initialised after the first frame so the launcher doesn't ANR.
  */
 @HiltAndroidApp
 class AwebApplication : Application(), Configuration.Provider {
@@ -27,21 +29,22 @@ class AwebApplication : Application(), Configuration.Provider {
     @Inject lateinit var lifecycleManager : TabLifecycleManager
     @Inject lateinit var serviceManager   : ServiceManager
     @Inject lateinit var workerFactory    : HiltWorkerFactory
-    @Inject lateinit var crashManager     : CrashRecoveryManager
 
+    // WorkManager configuration — must be provided before WorkManager.getInstance()
+    // is called. Returning this here disables auto-init (removed via manifest).
     override val workManagerConfiguration: Configuration
-        get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
+        get() = Configuration.Builder()
+            .setWorkerFactory(workerFactory)
+            .setMinimumLoggingLevel(android.util.Log.INFO)
+            .build()
 
     override fun onCreate() {
         super.onCreate()
 
-        // 1. Install crash handler — must be first
-        crashManager.install()
+        // 1. Register notification channel immediately (needed before service starts)
+        createNotificationChannel()
 
-        // 2. Warm up GeckoView runtime
-        GeckoRuntimeManager.init(this)
-
-        // 3. Register memory pressure callbacks
+        // 2. Register memory pressure callbacks (lightweight, main-thread safe)
         registerComponentCallbacks(
             MemoryPressureReceiver(
                 lifecycleManager  = lifecycleManager,
@@ -50,14 +53,41 @@ class AwebApplication : Application(), Configuration.Provider {
             )
         )
 
-        // 4. Register foreground service notification channel
-        createNotificationChannel()
+        // 3. Defer all heavy startup work until after the first frame renders.
+        //    This prevents the launcher from showing a black screen while
+        //    GeckoRuntime spins up its internal Gecko process.
+        Handler(Looper.getMainLooper()).post {
+            initGeckoRuntime()
+            startForegroundServiceSafely()
+            scheduleHealthWorkerSafely()
+        }
+    }
 
-        // 5. Start foreground service
-        serviceManager.startService(this)
+    private fun initGeckoRuntime() {
+        try {
+            GeckoRuntimeManager.init(this)
+        } catch (e: Exception) {
+            android.util.Log.e("AwebApplication", "GeckoRuntime init failed", e)
+        }
+    }
 
-        // 6. Schedule periodic WorkManager health check
-        ServiceHealthWorker.schedule(this)
+    private fun startForegroundServiceSafely() {
+        try {
+            serviceManager.startService(this)
+        } catch (e: Exception) {
+            // On some devices startForegroundService can throw if the app
+            // moves to background very quickly. Non-fatal — WorkManager will
+            // restart the service on the next health check.
+            android.util.Log.w("AwebApplication", "Service start deferred: ${e.message}")
+        }
+    }
+
+    private fun scheduleHealthWorkerSafely() {
+        try {
+            ServiceHealthWorker.schedule(this)
+        } catch (e: Exception) {
+            android.util.Log.w("AwebApplication", "WorkManager schedule failed: ${e.message}")
+        }
     }
 
     private fun createNotificationChannel() {

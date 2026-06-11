@@ -30,15 +30,6 @@ import com.aweb.browser.ui.workspace.*
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
-/**
- * Single Activity.
- *
- * Phase 9 additions:
- *  - [HardeningViewModel] injected — crash detection on launch.
- *  - [CrashRecoveryBanner] shown at top of screen after crash.
- *  - [DiagnosticsScreen] accessible from Settings.
- *  - [markClean] called in onStop for clean-exit detection.
- */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
@@ -61,12 +52,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-    override fun onStop() {
-        super.onStop()
-        // Mark session clean so next launch doesn't trigger crash banner
-        // We get this for free by just using the HardeningViewModel
-    }
 }
 
 @Composable
@@ -75,10 +60,10 @@ fun AwebRootLayout(
     serviceManager    : ServiceManager,
     onKeepScreenAwake : (Boolean) -> Unit,
 ) {
-    val wsViewModel      : WorkspaceViewModel = hiltViewModel()
-    val tabViewModel     : TabViewModel       = hiltViewModel()
-    val settingsViewModel: SettingsViewModel  = hiltViewModel()
-    val setupViewModel   : SetupViewModel     = hiltViewModel()
+    val wsViewModel       : WorkspaceViewModel = hiltViewModel()
+    val tabViewModel      : TabViewModel       = hiltViewModel()
+    val settingsViewModel : SettingsViewModel  = hiltViewModel()
+    val setupViewModel    : SetupViewModel     = hiltViewModel()
     val hardeningViewModel: HardeningViewModel = hiltViewModel()
 
     val wsState        by wsViewModel.uiState.collectAsState()
@@ -87,19 +72,23 @@ fun AwebRootLayout(
     val setupDone      by setupViewModel.setupDone.collectAsState()
     val hardeningState by hardeningViewModel.uiState.collectAsState()
 
+    // Keep screen awake flag
     LaunchedEffect(settingsState.keepScreenAwake) {
         onKeepScreenAwake(settingsState.keepScreenAwake)
     }
+
+    // Sync TabViewModel with active workspace
     LaunchedEffect(wsState.activeWorkspace) {
         wsState.activeWorkspace?.let { tabViewModel.setWorkspace(it) }
     }
 
+    // Update foreground service notification when tabs change
     val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(tabState.tabs) {
         serviceManager.requestNotificationUpdate(context)
     }
 
-    // Mark session clean whenever the composition is active (app is in foreground)
+    // Mark session clean when Activity leaves foreground
     DisposableEffect(Unit) {
         onDispose { hardeningViewModel.markClean() }
     }
@@ -110,12 +99,15 @@ fun AwebRootLayout(
     var renameTarget    by remember { mutableStateOf<WorkspaceEntity?>(null) }
     var clearTarget     by remember { mutableStateOf<WorkspaceEntity?>(null) }
 
-    LaunchedEffect(setupDone) { if (!setupDone) showSetup = true }
+    // Show setup guide on first launch only
+    LaunchedEffect(setupDone) {
+        if (!setupDone) showSetup = true
+    }
 
     Surface(color = Color(0xFF0F0F0F), modifier = Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize()) {
 
-            // ── Main layout ───────────────────────────────────────────────
+            // Main layout: sidebar + browser
             Row(Modifier.fillMaxSize()) {
                 WorkspaceSidebar(
                     workspaces       = wsState.workspaces,
@@ -137,7 +129,7 @@ fun AwebRootLayout(
                 }
             }
 
-            // ── Crash recovery banner ─────────────────────────────────────
+            // Crash recovery banner
             if (hardeningState.showCrashBanner) {
                 hardeningState.crashInfo?.let { info ->
                     CrashRecoveryBanner(
@@ -147,29 +139,33 @@ fun AwebRootLayout(
                         modifier     = Modifier
                             .align(Alignment.TopCenter)
                             .fillMaxWidth()
-                            .padding(start = 220.dp), // offset for sidebar
+                            .padding(start = 220.dp),
                     )
                 }
             }
 
-            // ── Settings overlay ──────────────────────────────────────────
-            AnimatedVisibility(visible = showSettings,
-                enter = slideInHorizontally { it } + fadeIn(),
-                exit  = slideOutHorizontally { it } + fadeOut()) {
+            // Settings overlay
+            AnimatedVisibility(
+                visible  = showSettings,
+                enter    = slideInHorizontally { it } + fadeIn(),
+                exit     = slideOutHorizontally { it } + fadeOut(),
+            ) {
                 Surface(color = Color(0xFF0F0F0F), modifier = Modifier.fillMaxSize()) {
                     SettingsScreen(
-                        onDismiss       = { showSettings = false },
-                        viewModel       = settingsViewModel,
-                        onOpenSetup     = { showSetup = true },
+                        onDismiss         = { showSettings = false },
+                        viewModel         = settingsViewModel,
+                        onOpenSetup       = { showSetup = true },
                         onOpenDiagnostics = { showDiagnostics = true },
                     )
                 }
             }
 
-            // ── HyperOS setup overlay ─────────────────────────────────────
-            AnimatedVisibility(visible = showSetup,
-                enter = slideInVertically { -it } + fadeIn(),
-                exit  = slideOutVertically { -it } + fadeOut()) {
+            // HyperOS setup overlay
+            AnimatedVisibility(
+                visible  = showSetup,
+                enter    = slideInVertically { -it } + fadeIn(),
+                exit     = slideOutVertically { -it } + fadeOut(),
+            ) {
                 Surface(color = Color(0xFF0F0F0F), modifier = Modifier.fillMaxSize()) {
                     HyperOsSetupScreen(
                         onDismiss = { showSetup = false },
@@ -178,10 +174,12 @@ fun AwebRootLayout(
                 }
             }
 
-            // ── Diagnostics overlay ───────────────────────────────────────
-            AnimatedVisibility(visible = showDiagnostics,
-                enter = slideInHorizontally { it } + fadeIn(),
-                exit  = slideOutHorizontally { it } + fadeOut()) {
+            // Diagnostics overlay
+            AnimatedVisibility(
+                visible  = showDiagnostics,
+                enter    = slideInHorizontally { it } + fadeIn(),
+                exit     = slideOutHorizontally { it } + fadeOut(),
+            ) {
                 Surface(color = Color(0xFF0F0F0F), modifier = Modifier.fillMaxSize()) {
                     DiagnosticsScreen(
                         onDismiss = { showDiagnostics = false },
@@ -192,7 +190,7 @@ fun AwebRootLayout(
         }
     }
 
-    // ── Workspace dialogs ─────────────────────────────────────────────────
+    // Workspace dialogs
     if (wsState.showCreateDialog) {
         CreateWorkspaceDialog(
             onConfirm = { name, color -> wsViewModel.createWorkspace(name, color) },

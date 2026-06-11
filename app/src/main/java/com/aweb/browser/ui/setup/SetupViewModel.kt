@@ -16,38 +16,41 @@ import javax.inject.Inject
 private val Context.setupDataStore by preferencesDataStore("aweb_setup")
 private val KEY_SETUP_DONE = booleanPreferencesKey("setup_done")
 
-/**
- * Tracks whether the HyperOS setup guide has been completed.
- *
- * - [setupDone]: persisted in DataStore; once set to true the setup
- *   screen is not shown again on launch (user can still reach it via Settings).
- * - [batteryOptimizationIgnored]: live check via PowerManager.
- */
 @HiltViewModel
 class SetupViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
-    private val _setupDone = MutableStateFlow(false)
+    private val _setupDone = MutableStateFlow(true)   // default true = don't show on first launch if DataStore fails
     val setupDone: StateFlow<Boolean> = _setupDone.asStateFlow()
 
     val batteryOptimizationIgnored: Boolean
-        get() {
+        get() = try {
             val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-            return pm.isIgnoringBatteryOptimizations(context.packageName)
-        }
+            pm.isIgnoringBatteryOptimizations(context.packageName)
+        } catch (e: Exception) { false }
 
     init {
         viewModelScope.launch {
-            context.setupDataStore.data
-                .map { it[KEY_SETUP_DONE] ?: false }
-                .collect { _setupDone.value = it }
+            try {
+                context.setupDataStore.data
+                    .catch { emit(androidx.datastore.preferences.core.emptyPreferences()) }
+                    .map { it[KEY_SETUP_DONE] ?: false }
+                    .collect { _setupDone.value = it }
+            } catch (e: Exception) {
+                android.util.Log.w("SetupViewModel", "DataStore read failed: ${e.message}")
+                _setupDone.value = true  // don't show setup if we can't read state
+            }
         }
     }
 
     fun markSetupDone() {
         viewModelScope.launch {
-            context.setupDataStore.edit { it[KEY_SETUP_DONE] = true }
+            try {
+                context.setupDataStore.edit { it[KEY_SETUP_DONE] = true }
+            } catch (e: Exception) {
+                android.util.Log.w("SetupViewModel", "markSetupDone failed: ${e.message}")
+            }
         }
     }
 }

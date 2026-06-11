@@ -66,7 +66,9 @@ class GeckoSessionWrapper(
 
     fun open() {
         if (!session.isOpen) {
-            session.open(GeckoRuntimeManager.runtime)
+            val ctx = appContext ?: return
+            val rt  = GeckoRuntimeManager.getOrInit(ctx)
+            session.open(rt)
             Log.d(TAG, "Session opened contextId=$contextId")
         }
     }
