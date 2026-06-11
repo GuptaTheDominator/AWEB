@@ -31,14 +31,6 @@ android {
         ksp {
             arg("room.schemaLocation", "$projectDir/schemas")
         }
-
-        // ── ABI filters ───────────────────────────────────────────────────
-        // Only include ARM64 native libs in the universal APK.
-        // GeckoView ships x86/x86_64/armeabi-v7a too — stripping them
-        // saves ~450 MB on a Redmi Pad SE 4G (ARM64-only device).
-        ndk {
-            abiFilters += listOf("arm64-v8a")
-        }
     }
 
     signingConfigs {
