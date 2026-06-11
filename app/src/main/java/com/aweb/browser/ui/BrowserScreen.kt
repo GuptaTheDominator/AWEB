@@ -150,6 +150,7 @@ fun BrowserScreen(
     // Observe file pick requests
     LaunchedEffect(Unit) {
         featureViewModel.filePickRequests.collect { req ->
+            // OpenMultipleDocuments.launch() takes Array<String>
             filePicker.launch(req.mimeTypes)
         }
     }

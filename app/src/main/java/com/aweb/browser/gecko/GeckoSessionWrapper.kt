@@ -11,17 +11,8 @@ import org.mozilla.geckoview.*
 import org.mozilla.geckoview.GeckoSession.*
 
 /**
- * Wraps a single [GeckoSession] and exposes observable browser state
- * as [StateFlow]s so Compose can react to changes.
- *
- * Phase 8 additions:
- *  - DownloadHandler wired to ContentDelegate.onExternalResponse
- *  - BrowserPermissionHandler wired to PermissionDelegate
- *  - FileUploadHandler wired to ContentDelegate.onFilePickerRequest
- *  - Fullscreen signal forwarded via [onFullscreenChange] callback
- *  - SSL error / security state exposed via [isSecure]
- *
- * @param contextId Workspace isolation key. Null = no isolation (Phase 1 compat).
+ * Wraps a single [GeckoSession] and exposes observable browser state as [StateFlow]s.
+ * Compiled against GeckoView nightly-omni 132.0.20240929094629.
  */
 class GeckoSessionWrapper(
     private val contextId         : String? = null,
@@ -34,8 +25,6 @@ class GeckoSessionWrapper(
     companion object {
         private const val TAG = "GeckoSessionWrapper"
     }
-
-    // ── Observable state ──────────────────────────────────────────────────
 
     private val _url          = MutableStateFlow("")
     val url: StateFlow<String> get() = _url
@@ -57,8 +46,6 @@ class GeckoSessionWrapper(
 
     private val _isSecure     = MutableStateFlow(false)
     val isSecure: StateFlow<Boolean> get() = _isSecure
-
-    // ── Session ───────────────────────────────────────────────────────────
 
     val session: GeckoSession = createSession()
 
@@ -91,21 +78,19 @@ class GeckoSessionWrapper(
         }
     }
 
-    // ── Navigation ────────────────────────────────────────────────────────
-
     fun loadUrl(url: String) { open(); session.loadUri(url) }
     fun goBack()             { session.goBack() }
     fun goForward()          { session.goForward() }
     fun reload()             { session.reload() }
     fun stopLoading()        { session.stop() }
 
-    // ── Delegates ─────────────────────────────────────────────────────────
-
     private fun buildNavigationDelegate() = object : NavigationDelegate {
+        // GeckoView 132: onLocationChange(session, url, perms, hasUserGesture: Boolean)
         override fun onLocationChange(
-            session : GeckoSession,
-            url     : String?,
-            perms   : MutableList<PermissionDelegate.ContentPermission>,
+            session        : GeckoSession,
+            url            : String?,
+            perms          : MutableList<PermissionDelegate.ContentPermission>,
+            hasUserGesture : Boolean,
         ) { _url.value = url ?: "" }
 
         override fun onCanGoBack(session: GeckoSession, canGoBack: Boolean) {
@@ -114,7 +99,10 @@ class GeckoSessionWrapper(
         override fun onCanGoForward(session: GeckoSession, canGoForward: Boolean) {
             _canGoForward.value = canGoForward
         }
-        override fun onNewSession(session: GeckoSession, uri: String): GeckoResult<GeckoSession>? {
+        override fun onNewSession(
+            session : GeckoSession,
+            uri     : String,
+        ): GeckoResult<GeckoSession>? {
             session.loadUri(uri)
             return null
         }
@@ -149,14 +137,17 @@ class GeckoSessionWrapper(
             onFullscreenChange?.invoke(fullScreen)
         }
 
-        override fun onExternalResponse(
-            session  : GeckoSession,
-            response : WebResponse,
-        ) {
+        // GeckoView 132: WebResponse has .uri and .headers — no .filename field
+        override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
             val url      = response.uri ?: return
-            val filename = response.filename ?: url.substringAfterLast('/')
             val mime     = response.headers["Content-Type"]?.split(";")?.first()?.trim()
             val size     = response.headers["Content-Length"]?.toLongOrNull() ?: -1L
+            val filename = response.headers["Content-Disposition"]
+                ?.let { cd ->
+                    Regex("""filename\*?=(?:UTF-8'')?["']?([^"';\s]+)""", RegexOption.IGNORE_CASE)
+                        .find(cd)?.groupValues?.getOrNull(1)
+                } ?: url.substringAfterLast('/').substringBefore('?').takeIf { it.isNotBlank() }
+                ?: "download"
 
             if (appContext != null && downloadHandler != null) {
                 permissionHandler?.requestDownloadConfirmation(url, filename, mime, size)
@@ -164,22 +155,6 @@ class GeckoSessionWrapper(
             }
         }
 
-        override fun onFilePickerRequest(
-            session  : GeckoSession,
-            request  : ContentDelegate.FilePickerRequest,
-        ): GeckoResult<ContentDelegate.FilePickerResponse>? {
-            fileUploadHandler?.onFilePickerRequest(
-                callback  = object : GeckoSession.ContentDelegate.FilePickerCallback {
-                    override fun confirm(uris: Array<out String>?) {
-                        // handled via activity result
-                    }
-                },
-                mimeTypes = request.mimeTypes.toTypedArray(),
-                multiple  = request.isMultiple,
-            )
-            return null
-        }
-
-        override fun onCloseRequest(session: GeckoSession) { /* Phase 3+ handles */ }
+        override fun onCloseRequest(session: GeckoSession) { /* handled by tab close */ }
     }
 }

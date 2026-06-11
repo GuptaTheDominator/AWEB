@@ -8,6 +8,7 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.GeckoSession.PermissionDelegate
 import org.mozilla.geckoview.GeckoSession.PermissionDelegate.MediaSource
@@ -15,20 +16,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Intercepts GeckoView permission requests and routes them through
- * Android's runtime permission system + a Compose confirmation dialog.
- *
- * Supported permissions:
- *  - Camera (video capture)
- *  - Microphone (audio capture)
- *  - Geolocation
- *  - Notifications (web push)
- *
- * Flow:
- *  1. GeckoView calls [PermissionDelegate] → we emit a [PermissionRequest] event.
- *  2. [BrowserScreen] observes the event and shows a confirmation dialog.
- *  3. User taps Allow/Deny → we call [grant] or [deny].
- *  4. If Allow: check Android runtime permission, request if missing, then grant to Gecko.
+ * Intercepts GeckoView permission requests and routes them to the UI.
+ * Compiled against GeckoView nightly-omni 132.0.20240929094629.
  */
 @Singleton
 class BrowserPermissionHandler @Inject constructor() {
@@ -36,8 +25,6 @@ class BrowserPermissionHandler @Inject constructor() {
     companion object {
         private const val TAG = "BrowserPermissionHandler"
     }
-
-    // ── Events emitted to UI ───────────────────────────────────────────────
 
     sealed class PermissionRequest {
         data class MediaRequest(
@@ -68,8 +55,6 @@ class BrowserPermissionHandler @Inject constructor() {
     private val _requests = MutableSharedFlow<PermissionRequest>(extraBufferCapacity = 4)
     val requests: SharedFlow<PermissionRequest> = _requests.asSharedFlow()
 
-    // ── GeckoView PermissionDelegate ──────────────────────────────────────
-
     fun buildPermissionDelegate(context: Context): PermissionDelegate = object : PermissionDelegate {
 
         override fun onContentPermissionRequest(
@@ -83,12 +68,11 @@ class BrowserPermissionHandler @Inject constructor() {
                         PermissionRequest.LocationRequest(
                             origin   = perm.uri ?: "this site",
                             callback = object : PermissionDelegate.Callback {
-                                override fun grant() { /* handled via GeckoResult */ }
-                                override fun reject() { /* handled via GeckoResult */ }
+                                override fun grant()  {}
+                                override fun reject() {}
                             },
                         )
                     )
-                    // Return null — caller handles via the event flow + GeckoResult
                     null
                 }
                 PermissionDelegate.PERMISSION_DESKTOP_NOTIFICATION -> {
@@ -96,7 +80,7 @@ class BrowserPermissionHandler @Inject constructor() {
                         PermissionRequest.NotificationRequest(
                             origin   = perm.uri ?: "this site",
                             callback = object : PermissionDelegate.Callback {
-                                override fun grant() {}
+                                override fun grant()  {}
                                 override fun reject() {}
                             },
                         )
@@ -108,11 +92,11 @@ class BrowserPermissionHandler @Inject constructor() {
         }
 
         override fun onMediaPermissionRequest(
-            session : GeckoSession,
-            uri     : String,
-            video   : Array<out MediaSource>?,
-            audio   : Array<out MediaSource>?,
-            callback: PermissionDelegate.MediaCallback,
+            session  : GeckoSession,
+            uri      : String,
+            video    : Array<out MediaSource>?,
+            audio    : Array<out MediaSource>?,
+            callback : PermissionDelegate.MediaCallback,
         ) {
             Log.d(TAG, "Media permission: uri=$uri video=${video != null} audio=${audio != null}")
             _requests.tryEmit(
@@ -126,8 +110,6 @@ class BrowserPermissionHandler @Inject constructor() {
         }
     }
 
-    // ── Android permission helpers ────────────────────────────────────────
-
     fun hasCameraPermission(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
@@ -140,20 +122,10 @@ class BrowserPermissionHandler @Inject constructor() {
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
 
-    // ── Download event ────────────────────────────────────────────────────
-
-    fun requestDownloadConfirmation(
-        url     : String,
-        filename: String,
-        mimeType: String?,
-        size    : Long,
-    ) {
+    fun requestDownloadConfirmation(url: String, filename: String, mimeType: String?, size: Long) {
         _requests.tryEmit(
             PermissionRequest.DownloadRequest(
-                url      = url,
-                filename = filename,
-                mimeType = mimeType,
-                size     = size,
+                url = url, filename = filename, mimeType = mimeType, size = size
             )
         )
     }

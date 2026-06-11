@@ -9,18 +9,15 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Wraps GeckoView's find-in-page API.
- *
- * GeckoView exposes [GeckoSession.finder] which returns a [SessionFinder].
- * We hold the current session reference and expose find/clear operations
- * as simple suspend functions called from [BrowserScreen].
+ * Wraps GeckoView's find-in-page API (SessionFinder).
+ * GeckoView 132: SessionFinder.find() returns GeckoResult<GeckoSession.FinderResult>.
  */
 @Singleton
 class FindInPageHandler @Inject constructor() {
 
     data class FindResult(
-        val current: Int = 0,
-        val total  : Int = 0,
+        val current: Int     = 0,
+        val total  : Int     = 0,
         val found  : Boolean = false,
     )
 
@@ -32,9 +29,7 @@ class FindInPageHandler @Inject constructor() {
 
     private var currentSession: GeckoSession? = null
 
-    fun attachSession(session: GeckoSession) {
-        currentSession = session
-    }
+    fun attachSession(session: GeckoSession) { currentSession = session }
 
     fun show() { _isVisible.value = true }
 
@@ -45,14 +40,15 @@ class FindInPageHandler @Inject constructor() {
 
     fun find(query: String, forward: Boolean = true) {
         if (query.isBlank()) { clear(); return }
-        currentSession?.finder?.find(query,
-            if (forward) 0 else GeckoSession.FINDER_FIND_BACKWARDS
-        )?.then { result ->
-            _result.value = FindResult(
-                current = result?.current ?: 0,
-                total   = result?.total   ?: 0,
-                found   = result?.found   ?: false,
-            )
+        val flags = if (forward) 0 else GeckoSession.FINDER_FIND_BACKWARDS
+        currentSession?.finder?.find(query, flags)?.then { finderResult ->
+            if (finderResult != null) {
+                _result.value = FindResult(
+                    current = finderResult.current,
+                    total   = finderResult.total,
+                    found   = finderResult.found,
+                )
+            }
             GeckoResult.fromValue(null)
         }
     }

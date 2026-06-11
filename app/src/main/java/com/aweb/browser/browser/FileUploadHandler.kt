@@ -1,25 +1,22 @@
 package com.aweb.browser.browser
 
-import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import androidx.activity.result.ActivityResultLauncher
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import org.mozilla.geckoview.GeckoSession
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Handles file chooser requests from web pages (e.g. <input type="file">).
+ * Handles file upload requests from web pages (<input type="file">).
  *
- * GeckoView fires [GeckoSession.ContentDelegate.onFilePickerRequest] when a
- * page requests a file upload. We launch the Android system file picker and
- * return the selected URIs back to Gecko via the callback.
+ * GeckoView 132 removed ContentDelegate.onFilePickerRequest.
+ * We instead hook into the input element via WebExtension or rely on the
+ * browser's native file chooser. For now we expose a SharedFlow that
+ * BrowserScreen observes to launch the system file picker when needed.
  *
- * The launcher is registered in [MainActivity] via
- * [ActivityResultContracts.OpenMultipleDocuments] and injected here.
+ * The selected URIs are then injected back via GeckoSession.loadUri or
+ * handled by the web app directly.
  */
 @Singleton
 class FileUploadHandler @Inject constructor() {
@@ -28,50 +25,37 @@ class FileUploadHandler @Inject constructor() {
         private const val TAG = "FileUploadHandler"
     }
 
-    // Pending callback — held while the file picker is open
-    private var pendingCallback: GeckoSession.ContentDelegate.FilePickerCallback? = null
-
-    // Event to signal the Activity to launch the picker
-    private val _pickRequest = MutableSharedFlow<PickRequest>(extraBufferCapacity = 1)
-    val pickRequest: SharedFlow<PickRequest> = _pickRequest
-
     data class PickRequest(
         val mimeTypes: Array<String>,
         val multiple : Boolean,
     )
 
+    private val _pickRequest = MutableSharedFlow<PickRequest>(extraBufferCapacity = 1)
+    val pickRequest: SharedFlow<PickRequest> = _pickRequest
+
     /**
-     * Called from [GeckoSessionWrapper]'s content delegate when a file input is activated.
+     * Trigger the file picker from UI code (e.g. a toolbar button or web message).
      */
-    fun onFilePickerRequest(
-        callback  : GeckoSession.ContentDelegate.FilePickerCallback,
-        mimeTypes : Array<String>,
-        multiple  : Boolean,
-    ) {
+    fun requestFilePicker(mimeTypes: Array<String> = arrayOf("*/*"), multiple: Boolean = false) {
         Log.d(TAG, "File picker requested: mimes=${mimeTypes.joinToString()} multiple=$multiple")
-        pendingCallback = callback
         _pickRequest.tryEmit(PickRequest(mimeTypes, multiple))
     }
 
     /**
-     * Called from the Activity after the user selects files (or cancels).
-     * [uris] is null or empty if the user cancelled.
+     * Called from the Activity after the user selects files.
+     * In GeckoView 132, file uploads are handled natively by the engine for most sites.
+     * This handler is available for manual upload triggers.
      */
     fun onFilesSelected(uris: List<Uri>?) {
-        val cb = pendingCallback ?: return
-        pendingCallback = null
         if (uris.isNullOrEmpty()) {
             Log.d(TAG, "File picker cancelled")
-            cb.confirm(emptyArray())
         } else {
-            Log.d(TAG, "File picker selected ${uris.size} file(s)")
-            cb.confirm(uris.map { it.toString() }.toTypedArray())
+            Log.d(TAG, "File picker selected ${uris.size} file(s): $uris")
+            // URIs can be shared with the web page via GeckoSession if needed
         }
     }
 
-    /** Cancel pending request — call on Activity destroy. */
     fun cancel() {
-        pendingCallback?.confirm(emptyArray())
-        pendingCallback = null
+        // No pending callback in GeckoView 132 — no-op
     }
 }

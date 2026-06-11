@@ -205,7 +205,7 @@ private fun KeepAliveTabRow(
             modifier = Modifier.size(32.dp),
         ) {
             Icon(
-                Icons.Filled.BoltOff,
+                Icons.Filled.FlashOff,
                 contentDescription = "Disable Keep Alive",
                 tint     = Color(0xFF666666),
                 modifier = Modifier.size(16.dp),
