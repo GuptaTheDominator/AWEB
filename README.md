@@ -34,8 +34,8 @@ Background Layer →  AwebForegroundService, BootReceiver, WorkManager
 | 3     | Tabs per workspace                  | ✅ Built      |
 | 4     | Automatic tab lifecycle             | ✅ Built      |
 | 5     | Keep Alive tabs                     | ✅ Built      |
-| 6     | Memory modes + stability            | 🔲 Next      |
-| 7     | 24/7 background survival (HyperOS) | 🔲 Planned   |
+| 6     | Memory modes + stability            | ✅ Built      |
+| 7     | 24/7 background survival (HyperOS) | 🔲 Next      |
 | 8     | Browser completeness                | 🔲 Planned   |
 | 9     | Hardening + personal APK            | 🔲 Planned   |
 
@@ -53,6 +53,45 @@ A single-tab browser shell that:
 - Room database schema defined
 - Hilt DI wired
 - Manifest ready for foreground service + boot receiver
+
+## Phase 6 Deliverable
+
+Memory modes & stability — full settings + memory dashboard:
+
+**SettingsViewModel**
+- Collects all settings as a single combined StateFlow<SettingsUiState>
+- setMemoryMode(): applies preset limits (Conservative 0/2, Balanced 2/3, Performance 5/5)
+- setMaxRecentLiveTabs() / setMaxKeepAliveTabs(): fine-grain manual overrides
+- setDefaultHomepage() / setDefaultSearchEngine() / setKeepScreenAwake()
+- simulatePressure(trimLevel): triggers real TabLifecycleManager.onMemoryPressure()
+  for testing — same code path as the Android system callback
+- refreshLiveSessionCount(): reads TabSessionManager.liveSessionCount on demand
+
+**SettingsScreen**
+- Memory Mode selector: 3 radio cards (Conservative / Balanced ★ / Performance)
+  with preset description, auto-applies limits on selection
+- Fine-grain steppers: max recent live tabs (0–10), max Keep Alive tabs (1–10)
+- Memory Dashboard card: live session count, policy summary, lifecycle legend key
+  with expand arrow → full MemoryDashboardScreen
+- Browser prefs: homepage editor (inline OutlinedTextField), search engine chips
+- Display: keep screen awake toggle
+
+**MemoryDashboardScreen** (full-screen detail view)
+- Animated ring chart: live sessions / total tabs, colour shifts green→amber→red
+- Per-state animated progress bars: Active / Keep Alive / Recent / Unloaded
+- Policy grid cards: Mode / Max Recent / Max KA
+- Pressure simulation panel: Mild / Low / Critical / Severe buttons
+  — each calls simulatePressure() and refreshes count after 300ms
+- Real-time tab-state list from AppState snapshot (active first, then KA, then recency)
+
+**MainActivity** (Phase 6 upgrade)
+- Injects SettingsViewModel; LaunchedEffect reacts to keepScreenAwake →
+  window.addFlags / clearFlags(FLAG_KEEP_SCREEN_ON) live without restart
+- Settings rendered as slide-in AnimatedVisibility overlay (no NavHost needed)
+
+**WorkspaceSidebar** (Phase 6 upgrade)
+- Settings gear button at bottom below New Workspace
+- onOpenSettings callback plumbed through to MainActivity
 
 ## Phase 5 Deliverable
 

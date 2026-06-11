@@ -45,6 +45,7 @@ fun WorkspaceSidebar(
     onRename         : (WorkspaceEntity) -> Unit,
     onDelete         : (WorkspaceEntity) -> Unit,
     onClearData      : (WorkspaceEntity) -> Unit,
+    onOpenSettings   : () -> Unit = {},
     modifier         : Modifier = Modifier,
 ) {
     Surface(
@@ -124,7 +125,7 @@ fun WorkspaceSidebar(
                 onClick  = onNew,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp),
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
                 Icon(
                     Icons.Filled.Add,
@@ -133,11 +134,24 @@ fun WorkspaceSidebar(
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    "New Workspace",
-                    color    = Color(0xFF9C6FFF),
-                    fontSize = 13.sp,
+                Text("New Workspace", color = Color(0xFF9C6FFF), fontSize = 13.sp)
+            }
+
+            // ── Settings button ────────────────────────────────────────────
+            TextButton(
+                onClick  = onOpenSettings,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                Icon(
+                    Icons.Filled.Settings,
+                    contentDescription = "Settings",
+                    tint = Color(0xFF555555),
+                    modifier = Modifier.size(16.dp),
                 )
+                Spacer(Modifier.width(8.dp))
+                Text("Settings", color = Color(0xFF555555), fontSize = 13.sp)
             }
             Spacer(Modifier.height(8.dp))
         }
