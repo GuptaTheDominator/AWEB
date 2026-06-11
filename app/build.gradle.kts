@@ -60,15 +60,15 @@ android {
         }
     }
 
-    // ── ABI splits (CI) ────────────────────────────────────────────────────
-    // Produces one lean APK per ABI instead of one fat APK.
-    // The arm64-v8a APK is what goes onto the Redmi Pad SE 4G.
+    // ── ABI splits ─────────────────────────────────────────────────────────
+    // Release: arm64-v8a only (Redmi Pad SE 4G target, saves ~450MB)
+    // Debug:   universal (needed for x86_64 emulator testing)
     splits {
         abi {
-            isEnable         = true
+            isEnable       = buildTypes.getByName("release").isMinifyEnabled
             reset()
-            include("arm64-v8a")          // only the ABI we need
-            isUniversalApk   = false       // skip the fat universal APK
+            include("arm64-v8a")
+            isUniversalApk = false
         }
     }
 
