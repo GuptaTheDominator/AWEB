@@ -2,10 +2,12 @@ package com.aweb.browser.ui.workspace
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aweb.browser.AppState
 import com.aweb.browser.data.entity.WorkspaceEntity
-import com.aweb.browser.data.repository.WorkspaceRepository
 import com.aweb.browser.data.repository.SettingsRepository
+import com.aweb.browser.data.repository.WorkspaceRepository
 import com.aweb.browser.lifecycle.TabLifecycleManager
+import com.aweb.browser.ui.keepalive.KeepAliveManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -25,6 +27,7 @@ class WorkspaceViewModel @Inject constructor(
     private val repo            : WorkspaceRepository,
     private val settingsRepo    : SettingsRepository,
     private val lifecycleManager: TabLifecycleManager,
+    private val keepAliveManager: KeepAliveManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(WorkspaceUiState())
@@ -41,7 +44,7 @@ class WorkspaceViewModel @Inject constructor(
             }
         }
 
-        // Keep TabLifecycleManager in sync with memory mode setting changes
+        // Propagate memory mode + keep-alive cap changes to lifecycle manager
         viewModelScope.launch {
             combine(
                 settingsRepo.memoryMode,
@@ -50,6 +53,8 @@ class WorkspaceViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .collect { (mode, maxKa) ->
                     lifecycleManager.applyMemoryMode(mode.key, maxKa)
+                    // Enforce new cap on existing KA tabs immediately
+                    keepAliveManager.enforceCap(AppState.currentTabs, maxKa)
                 }
         }
     }
@@ -75,22 +80,22 @@ class WorkspaceViewModel @Inject constructor(
         viewModelScope.launch { repo.renameWorkspace(id, newName.trim()) }
     }
 
-    fun confirmDeleteWorkspace(workspace: WorkspaceEntity) =
-        _uiState.update { it.copy(showDeleteDialog = workspace) }
+    fun confirmDeleteWorkspace(ws: WorkspaceEntity) =
+        _uiState.update { it.copy(showDeleteDialog = ws) }
 
     fun dismissDeleteDialog() = _uiState.update { it.copy(showDeleteDialog = null) }
 
-    fun deleteWorkspace(workspace: WorkspaceEntity) {
+    fun deleteWorkspace(ws: WorkspaceEntity) {
         viewModelScope.launch {
-            repo.deleteWorkspace(workspace.id)
+            repo.deleteWorkspace(ws.id)
             _uiState.update { it.copy(showDeleteDialog = null) }
             val remaining = repo.getAll()
             if (remaining.isNotEmpty()) switchWorkspace(remaining.first())
         }
     }
 
-    fun clearWorkspaceData(workspace: WorkspaceEntity) {
-        // Gecko context storage clear — handled in TabViewModel/TabSessionManager
+    fun clearWorkspaceData(ws: WorkspaceEntity) {
+        // Gecko storage clear handled in TabSessionManager on next workspace restore
     }
 
     fun reorderWorkspaces(orderedIds: List<String>) {

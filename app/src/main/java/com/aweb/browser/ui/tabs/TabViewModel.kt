@@ -9,6 +9,7 @@ import com.aweb.browser.data.repository.TabRepository
 import com.aweb.browser.gecko.GeckoSessionWrapper
 import com.aweb.browser.gecko.TabSessionManager
 import com.aweb.browser.lifecycle.TabLifecycleManager
+import com.aweb.browser.ui.keepalive.KeepAliveManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -27,20 +28,28 @@ class TabViewModel @Inject constructor(
     private val tabRepo         : TabRepository,
     private val sessionManager  : TabSessionManager,
     private val lifecycleManager: TabLifecycleManager,
+    private val keepAliveManager: KeepAliveManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TabUiState())
     val uiState: StateFlow<TabUiState> = _uiState.asStateFlow()
 
+    /** Expose Keep Alive events for BrowserScreen to react to (toast / dialog). */
+    val keepAliveEvent = keepAliveManager.event
+
     private val _activeWorkspace = MutableStateFlow<WorkspaceEntity?>(null)
 
-    // Browser state exposed for BrowserScreen
-    val url         get() = _uiState.value.activeSession?.url
-    val title       get() = _uiState.value.activeSession?.title
-    val progress    get() = _uiState.value.activeSession?.progress
-    val loading     get() = _uiState.value.activeSession?.loading
-    val canGoBack   get() = _uiState.value.activeSession?.canGoBack
+    // Browser state shortcuts
+    val url          get() = _uiState.value.activeSession?.url
+    val title        get() = _uiState.value.activeSession?.title
+    val progress     get() = _uiState.value.activeSession?.progress
+    val loading      get() = _uiState.value.activeSession?.loading
+    val canGoBack    get() = _uiState.value.activeSession?.canGoBack
     val canGoForward get() = _uiState.value.activeSession?.canGoForward
+
+    // Keep Alive cap (for toolbar badge and panel)
+    val keepAliveCount  get() = _uiState.value.tabs.count { it.keepAlive }
+    val keepAliveCap    get() = lifecycleManager.policy.maxKeepAlive
 
     init {
         viewModelScope.launch {
@@ -51,30 +60,25 @@ class TabViewModel @Inject constructor(
                 }
                 .collect { (ws, rawTabs) ->
 
-                    // Seed a homepage tab if workspace has no tabs yet
+                    // Seed homepage tab if workspace empty
                     val tabs = if (rawTabs.isEmpty()) {
-                        val newTab = tabRepo.createTab(workspaceId = ws.id)
-                        tabRepo.setActiveTab(ws.id, newTab.id)
-                        listOf(newTab.copy(isActive = true))
+                        val t = tabRepo.createTab(workspaceId = ws.id)
+                        tabRepo.setActiveTab(ws.id, t.id)
+                        listOf(t.copy(isActive = true))
                     } else rawTabs
 
                     val prev   = _uiState.value.activeTab
                     val active = tabs.firstOrNull { it.isActive } ?: tabs.first()
 
-                    // On first load for this workspace → restore from disk
-                    val isWorkspaceSwitch = prev == null ||
-                        prev.workspaceId != active.workspaceId
+                    val isWorkspaceSwitch =
+                        prev == null || prev.workspaceId != active.workspaceId
 
                     if (isWorkspaceSwitch) {
                         lifecycleManager.onAppRestore(tabs, ws)
                     }
 
                     val session = sessionManager.getOrCreate(active, ws)
-
-                    // Persist url/title back to Room as user browses
                     wireSessionCallbacks(session, active)
-
-                    // Keep AppState snapshot fresh for MemoryPressureReceiver
                     AppState.update(ws, tabs)
 
                     _uiState.update {
@@ -84,7 +88,6 @@ class TabViewModel @Inject constructor(
         }
     }
 
-    /** Called by MainActivity whenever the active workspace changes. */
     fun setWorkspace(workspace: WorkspaceEntity) {
         _activeWorkspace.value = workspace
     }
@@ -100,12 +103,11 @@ class TabViewModel @Inject constructor(
     }
 
     fun selectTab(tab: TabEntity) {
-        val ws   = _activeWorkspace.value ?: return
+        val ws  = _activeWorkspace.value ?: return
         val prev = _uiState.value.activeTab
         val all  = _uiState.value.tabs
         viewModelScope.launch {
             tabRepo.setActiveTab(ws.id, tab.id)
-            // Let TabLifecycleManager handle session promotion/demotion/unloading
             lifecycleManager.onTabSelected(
                 newActiveTab      = tab,
                 previousActiveTab = prev,
@@ -122,15 +124,11 @@ class TabViewModel @Inject constructor(
             val wasActive = tab.id == _uiState.value.activeTab?.id
             tabRepo.closeTab(tab.id)
             lifecycleManager.onTabClosed(tab, all, ws)
-
             if (wasActive) {
                 val remaining = tabRepo.getTabsForWorkspace(ws.id)
                 val next = remaining.firstOrNull()
-                if (next != null) {
-                    tabRepo.setActiveTab(ws.id, next.id)
-                } else {
-                    tabRepo.ensureAtLeastOneTab(ws.id, "https://duckduckgo.com")
-                }
+                if (next != null) tabRepo.setActiveTab(ws.id, next.id)
+                else tabRepo.ensureAtLeastOneTab(ws.id, "https://duckduckgo.com")
             }
         }
     }
@@ -139,7 +137,7 @@ class TabViewModel @Inject constructor(
         val ws   = _activeWorkspace.value ?: return
         val tabs = _uiState.value.tabs
         viewModelScope.launch {
-            tabs.forEach { tab -> lifecycleManager.onTabClosed(tab, tabs, ws) }
+            tabs.forEach { lifecycleManager.onTabClosed(it, tabs, ws) }
             tabRepo.closeAllTabsInWorkspace(ws.id)
             tabRepo.ensureAtLeastOneTab(ws.id, "https://duckduckgo.com")
         }
@@ -149,24 +147,29 @@ class TabViewModel @Inject constructor(
         viewModelScope.launch { tabRepo.setPinned(tab.id, pinned) }
     }
 
-    fun setKeepAlive(tab: TabEntity, keepAlive: Boolean) {
+    // ── Keep Alive actions ────────────────────────────────────────────────
+
+    /**
+     * Primary Keep Alive toggle — routes through [KeepAliveManager] which
+     * enforces the cap, updates Room, rebalances sessions, and emits events.
+     */
+    fun toggleKeepAlive(tab: TabEntity) {
         val ws  = _activeWorkspace.value ?: return
         val all = _uiState.value.tabs
-        viewModelScope.launch {
-            tabRepo.setKeepAlive(tab.id, keepAlive)
-            // Rebalance immediately so the change is applied to live sessions
-            if (!keepAlive) {
-                // If un-marking keep alive, it may get unloaded by rebalance
-                val updated = all.map { if (it.id == tab.id) it.copy(keepAlive = false) else it }
-                lifecycleManager.onTabSelected(
-                    newActiveTab      = all.first { it.isActive },
-                    previousActiveTab = null,
-                    allTabs           = updated,
-                    workspace         = ws,
-                )
-            }
-        }
+        keepAliveManager.toggle(tab, all, ws)
     }
+
+    /** Disable Keep Alive on a specific tab (from panel "disable" button). */
+    fun disableKeepAlive(tab: TabEntity) {
+        if (!tab.keepAlive) return
+        toggleKeepAlive(tab)
+    }
+
+    fun clearKeepAliveEvent() = keepAliveManager.clearEvent()
+
+    /** All Keep Alive tabs in the active workspace, sorted by last accessed. */
+    fun getKeepAliveTabs(): List<TabEntity> =
+        keepAliveManager.getKeepAliveTabs(_uiState.value.tabs)
 
     fun reorderTabs(orderedIds: List<String>) {
         val ws = _activeWorkspace.value ?: return

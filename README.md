@@ -33,8 +33,8 @@ Background Layer →  AwebForegroundService, BootReceiver, WorkManager
 | 2     | Workspace isolation                 | ✅ Built      |
 | 3     | Tabs per workspace                  | ✅ Built      |
 | 4     | Automatic tab lifecycle             | ✅ Built      |
-| 5     | Keep Alive tabs                     | 🔲 Next      |
-| 6     | Memory modes + stability            | 🔲 Planned   |
+| 5     | Keep Alive tabs                     | ✅ Built      |
+| 6     | Memory modes + stability            | 🔲 Next      |
 | 7     | 24/7 background survival (HyperOS) | 🔲 Planned   |
 | 8     | Browser completeness                | 🔲 Planned   |
 | 9     | Hardening + personal APK            | 🔲 Planned   |
@@ -53,6 +53,26 @@ A single-tab browser shell that:
 - Room database schema defined
 - Hilt DI wired
 - Manifest ready for foreground service + boot receiver
+
+## Phase 5 Deliverable
+
+Keep Alive tab feature — fully integrated end to end:
+- `KeepAliveManager` (@Singleton): toggle(), enforceCap(), getKeepAliveTabs()
+  - Checks cap before enabling; emits CapExceeded / Enabled / Disabled events
+  - On enable: creates live GeckoSession immediately + sets KEEP_ALIVE state in Room
+  - On disable: reverts to RECENT state, triggers rebalance (may get unloaded by LRU)
+  - enforceCap(): called on settings cap-reduction — removes oldest KA tabs beyond new limit
+- `KeepAliveIndicator`: animated pulsing amber bolt, 3 sizes (SMALL/MEDIUM/LARGE)
+- `KeepAliveBadge`: amber pill badge used in tab overview cards
+- `KeepAlivePanel`: bottom-sheet overlay — cap progress bar, KA tab list, empty hint
+- `KeepAliveCapDialog`: shown when user tries to exceed the cap — explains options
+- `KeepAliveToast`: 2-second auto-dismiss bottom-right toast confirming on/off
+- `TabStrip`: amber border + animated bolt on KA tabs; proper toggle label in context menu
+- `TabOverviewScreen`: KA tabs sorted first, amber border, KeepAliveBadge in card
+- `BrowserToolbar`: amber animated bolt button — opens KeepAlivePanel; grey when none active
+- `WorkspaceViewModel`: enforces cap when maxKeepAliveTabs setting changes (AppState snapshot)
+- `TabViewModel`: routes toggleKeepAlive / disableKeepAlive through KeepAliveManager;
+  exposes keepAliveEvent StateFlow for BrowserScreen to react to
 
 ## Phase 4 Deliverable
 

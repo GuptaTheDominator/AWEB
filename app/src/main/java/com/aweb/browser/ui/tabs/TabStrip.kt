@@ -21,18 +21,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aweb.browser.data.entity.TabEntity
+import com.aweb.browser.ui.keepalive.KeepAliveBolt
+import com.aweb.browser.ui.keepalive.KeepAliveColor
+import com.aweb.browser.ui.keepalive.KeepAliveIndicatorSize
 
 /**
- * Horizontal tab strip — sits between the toolbar and the web content.
+ * Horizontal scrollable tab strip — sits between toolbar and web content.
  *
- * Features:
- *  - Scrollable tab row (LazyRow)
- *  - Active tab highlighted
- *  - Pinned tabs always appear first (sorted in display)
- *  - Lifecycle state indicator (● Active  ○ Unloaded  ◆ Keep Alive  📌 Pinned)
- *  - Long-press tab → context menu (Pin / Keep Alive / Close)
- *  - "+" button on the right to open a new tab
- *  - Tab count badge
+ * Phase 5 upgrades:
+ *  - Keep Alive tabs show animated amber ◆ bolt instead of plain lifecycle icon
+ *  - Long-press context menu now has "Keep tab alive" / "Disable Keep Alive"
+ *    with the amber bolt icon and accurate toggle label
+ *  - Tab chip border is amber for Keep Alive tabs, workspace-colour for active
  */
 @Composable
 fun TabStrip(
@@ -43,21 +43,23 @@ fun TabStrip(
     onCloseTab    : (TabEntity) -> Unit,
     onNewTab      : () -> Unit,
     onPinTab      : (TabEntity, Boolean) -> Unit,
-    onKeepAlive   : (TabEntity, Boolean) -> Unit,
+    onToggleKeepAlive: (TabEntity) -> Unit,
     modifier      : Modifier = Modifier,
 ) {
     val wsColor = runCatching {
         Color(android.graphics.Color.parseColor(workspaceColor))
     }.getOrDefault(Color(0xFF9C6FFF))
 
-    // Pinned tabs first, then by order index
     val sortedTabs = remember(tabs) {
-        tabs.sortedWith(compareByDescending<TabEntity> { it.isPinned }.thenBy { it.orderIndex })
+        tabs.sortedWith(
+            compareByDescending<TabEntity> { it.isPinned }
+                .thenByDescending { it.keepAlive }
+                .thenBy { it.orderIndex }
+        )
     }
 
     val listState = rememberLazyListState()
 
-    // Auto-scroll to active tab when it changes
     val activeIndex = remember(sortedTabs, activeTabId) {
         sortedTabs.indexOfFirst { it.id == activeTabId }.coerceAtLeast(0)
     }
@@ -66,48 +68,40 @@ fun TabStrip(
     }
 
     Surface(
-        color          = Color(0xFF141414),
-        tonalElevation = 0.dp,
-        modifier       = modifier.fillMaxWidth().height(40.dp),
+        color     = Color(0xFF141414),
+        modifier  = modifier.fillMaxWidth().height(40.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
 
-            // Tab count badge
             Text(
-                text     = "${tabs.size}",
-                color    = Color(0xFF666666),
+                "${tabs.size}",
+                color    = Color(0xFF555555),
                 fontSize = 11.sp,
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
 
-            // Tab list
             LazyRow(
-                state         = listState,
-                modifier      = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 2.dp),
+                state                 = listState,
+                modifier              = Modifier.weight(1f),
+                contentPadding        = PaddingValues(horizontal = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 items(sortedTabs, key = { it.id }) { tab ->
                     TabChip(
-                        tab          = tab,
-                        isActive     = tab.id == activeTabId,
-                        wsColor      = wsColor,
-                        onSelect     = { onSelectTab(tab) },
-                        onClose      = { onCloseTab(tab) },
-                        onPin        = { onPinTab(tab, !tab.isPinned) },
-                        onKeepAlive  = { onKeepAlive(tab, !tab.keepAlive) },
+                        tab              = tab,
+                        isActive         = tab.id == activeTabId,
+                        wsColor          = wsColor,
+                        onSelect         = { onSelectTab(tab) },
+                        onClose          = { onCloseTab(tab) },
+                        onPin            = { onPinTab(tab, !tab.isPinned) },
+                        onToggleKeepAlive = { onToggleKeepAlive(tab) },
                     )
                 }
             }
 
-            // New tab button
-            IconButton(
-                onClick  = onNewTab,
-                modifier = Modifier.size(40.dp),
-            ) {
+            IconButton(onClick = onNewTab, modifier = Modifier.size(40.dp)) {
                 Icon(
-                    Icons.Filled.Add,
-                    contentDescription = "New tab",
+                    Icons.Filled.Add, "New tab",
                     tint     = Color(0xFF888888),
                     modifier = Modifier.size(18.dp),
                 )
@@ -116,64 +110,80 @@ fun TabStrip(
     }
 }
 
-// ── Single tab chip ────────────────────────────────────────────────────────
+// ── Tab chip ───────────────────────────────────────────────────────────────
 
 @Composable
 private fun TabChip(
-    tab        : TabEntity,
-    isActive   : Boolean,
-    wsColor    : Color,
-    onSelect   : () -> Unit,
-    onClose    : () -> Unit,
-    onPin      : () -> Unit,
-    onKeepAlive: () -> Unit,
+    tab              : TabEntity,
+    isActive         : Boolean,
+    wsColor          : Color,
+    onSelect         : () -> Unit,
+    onClose          : () -> Unit,
+    onPin            : () -> Unit,
+    onToggleKeepAlive: () -> Unit,
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
     val bgColor by animateColorAsState(
         targetValue = if (isActive) Color(0xFF252525) else Color(0xFF1A1A1A),
-        label       = "tabBg",
+        label = "tabBg",
     )
+
+    // Border: amber for keep-alive, workspace colour for active, none otherwise
+    val borderColor = when {
+        tab.keepAlive -> KeepAliveColor.copy(alpha = 0.7f)
+        isActive      -> wsColor.copy(alpha = 0.6f)
+        else          -> Color.Transparent
+    }
 
     Box {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .height(32.dp)
-                .widthIn(min = 80.dp, max = 180.dp)
+                .widthIn(min = 80.dp, max = 190.dp)
                 .clip(RoundedCornerShape(6.dp))
                 .background(bgColor)
-                .then(
-                    if (isActive) Modifier.border(
-                        1.dp, wsColor.copy(alpha = 0.6f), RoundedCornerShape(6.dp)
-                    ) else Modifier
-                )
+                .border(1.dp, borderColor, RoundedCornerShape(6.dp))
                 .combinedClickable(
                     onClick     = onSelect,
                     onLongClick = { showMenu = true },
                 )
                 .padding(horizontal = 8.dp),
         ) {
-            // Lifecycle indicator
-            Text(
-                text     = lifecycleIcon(tab),
-                fontSize = 8.sp,
-                color    = lifecycleColor(tab, wsColor),
-                modifier = Modifier.padding(end = 4.dp),
-            )
+            // Lifecycle / Keep Alive indicator
+            if (tab.keepAlive) {
+                KeepAliveBolt(
+                    size     = KeepAliveIndicatorSize.SMALL,
+                    animated = true,
+                    modifier = Modifier.padding(end = 4.dp),
+                )
+            } else {
+                Text(
+                    lifecycleIcon(tab),
+                    fontSize = 8.sp,
+                    color    = lifecycleColor(tab, wsColor),
+                    modifier = Modifier.padding(end = 4.dp),
+                )
+            }
 
             // Title
             Text(
-                text     = tab.title.ifBlank { tab.url.removePrefix("https://").removePrefix("http://") },
-                color    = if (isActive) Color.White else Color(0xFF999999),
-                fontSize = 12.sp,
-                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
+                text = tab.title.ifBlank {
+                    tab.url.removePrefix("https://").removePrefix("http://")
+                },
+                color      = if (isActive) Color.White
+                             else if (tab.keepAlive) KeepAliveColor.copy(alpha = 0.9f)
+                             else Color(0xFF999999),
+                fontSize   = 12.sp,
+                fontWeight = if (isActive || tab.keepAlive) FontWeight.SemiBold
+                             else FontWeight.Normal,
+                maxLines   = 1,
+                overflow   = TextOverflow.Ellipsis,
+                modifier   = Modifier.weight(1f),
             )
 
-            // Close button
+            // Close
             Box(
                 modifier = Modifier
                     .size(16.dp)
@@ -182,9 +192,8 @@ private fun TabChip(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    Icons.Filled.Close,
-                    contentDescription = "Close tab",
-                    tint     = Color(0xFF666666),
+                    Icons.Filled.Close, "Close tab",
+                    tint     = Color(0xFF555555),
                     modifier = Modifier.size(10.dp),
                 )
             }
@@ -196,6 +205,7 @@ private fun TabChip(
             onDismissRequest = { showMenu = false },
             modifier         = Modifier.background(Color(0xFF1E1E1E)),
         ) {
+            // Pin
             DropdownMenuItem(
                 text = {
                     Text(
@@ -204,34 +214,36 @@ private fun TabChip(
                     )
                 },
                 leadingIcon = {
-                    Icon(
-                        if (tab.isPinned) Icons.Filled.PushPin else Icons.Filled.PushPin,
-                        null,
-                        tint = Color(0xFF4FC3F7),
-                    )
+                    Icon(Icons.Filled.PushPin, null, tint = Color(0xFF4FC3F7))
                 },
                 onClick = { showMenu = false; onPin() },
             )
+
+            // Keep Alive toggle
             DropdownMenuItem(
                 text = {
                     Text(
                         if (tab.keepAlive) "Disable Keep Alive" else "Keep tab alive",
-                        color = Color.White,
+                        color = if (tab.keepAlive) Color(0xFFAAAAAA) else Color.White,
                     )
                 },
                 leadingIcon = {
-                    Icon(
-                        Icons.Filled.Bolt,
-                        null,
-                        tint = if (tab.keepAlive) Color(0xFFFFB74D) else Color(0xFF666666),
+                    KeepAliveBolt(
+                        size     = KeepAliveIndicatorSize.MEDIUM,
+                        animated = !tab.keepAlive,
                     )
                 },
-                onClick = { showMenu = false; onKeepAlive() },
+                onClick = { showMenu = false; onToggleKeepAlive() },
             )
+
             Divider(color = Color(0xFF333333))
+
+            // Close
             DropdownMenuItem(
                 text = { Text("Close tab", color = Color(0xFFCF6679)) },
-                leadingIcon = { Icon(Icons.Filled.Close, null, tint = Color(0xFFCF6679)) },
+                leadingIcon = {
+                    Icon(Icons.Filled.Close, null, tint = Color(0xFFCF6679))
+                },
                 onClick = { showMenu = false; onClose() },
             )
         }
@@ -240,17 +252,15 @@ private fun TabChip(
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-private fun lifecycleIcon(tab: TabEntity): String = when {
-    tab.keepAlive                          -> "◆"
-    tab.isPinned                           -> "📌"
-    tab.lastLifecycleState == "active"     -> "●"
-    tab.lastLifecycleState == "recent"     -> "◐"
-    else                                   -> "○"
+private fun lifecycleIcon(tab: TabEntity) = when {
+    tab.isPinned                               -> "📌"
+    tab.lastLifecycleState == "active"         -> "●"
+    tab.lastLifecycleState == "recent"         -> "◐"
+    else                                       -> "○"
 }
 
-private fun lifecycleColor(tab: TabEntity, wsColor: Color): Color = when {
-    tab.keepAlive                          -> Color(0xFFFFB74D)
-    tab.lastLifecycleState == "active"     -> wsColor
-    tab.lastLifecycleState == "recent"     -> wsColor.copy(alpha = 0.6f)
-    else                                   -> Color(0xFF444444)
+private fun lifecycleColor(tab: TabEntity, wsColor: Color) = when {
+    tab.lastLifecycleState == "active"  -> wsColor
+    tab.lastLifecycleState == "recent"  -> wsColor.copy(alpha = 0.55f)
+    else                                -> Color(0xFF3A3A3A)
 }
