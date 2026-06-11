@@ -26,6 +26,7 @@ class MemoryPressureReceiver(
         private const val TAG = "MemoryPressureReceiver"
     }
 
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun onTrimMemory(level: Int) {
         Log.w(TAG, "onTrimMemory level=$level")
         val workspace = workspaceSnapshot() ?: return

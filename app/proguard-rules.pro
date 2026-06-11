@@ -44,6 +44,25 @@
 # DataStore
 -keep class androidx.datastore.** { *; }
 
+# ── snakeyaml (GeckoView transitive dep) ──────────────────────────────────
+# snakeyaml references java.beans.* which isn't available on Android.
+# GeckoView never actually calls the bean introspection code path at runtime.
+-dontwarn org.yaml.snakeyaml.**
+-keep class org.yaml.snakeyaml.** { *; }
+-dontwarn java.beans.**
+
+# ── Missing classes that R8 complains about from GeckoView deps ────────────
+-dontwarn java.beans.BeanDescriptor
+-dontwarn java.beans.BeanInfo
+-dontwarn java.beans.IntrospectionException
+-dontwarn java.beans.Introspector
+-dontwarn java.beans.MethodDescriptor
+-dontwarn java.beans.PropertyDescriptor
+-dontwarn java.beans.SimpleBeanInfo
+
+# ── Play Services FIDO (GeckoView dep, not always present) ────────────────
+-dontwarn com.google.android.gms.fido.**
+
 # Keep source file info for crash traces
 -keepattributes *Annotation*
 -keepattributes SourceFile,LineNumberTable
