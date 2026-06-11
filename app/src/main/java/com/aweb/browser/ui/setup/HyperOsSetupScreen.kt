@@ -13,7 +13,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,7 +70,7 @@ fun HyperOsSetupScreen(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
             IconButton(onClick = onDismiss) {
-                Icon(Icons.Filled.ArrowBack, "Back", tint = Color.White)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
             }
             Column {
                 Text("HyperOS Setup", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -84,7 +86,7 @@ fun HyperOsSetupScreen(
             }
         }
 
-        Divider(color = Color(0xFF1E1E1E))
+        HorizontalDivider(color = Color(0xFF1E1E1E))
 
         // ── Intro ─────────────────────────────────────────────────────────
         Text(
@@ -236,7 +238,7 @@ private fun SetupStepCard(
         // Expanded details
         AnimatedVisibility(visible = expanded.value) {
             Column(modifier = Modifier.padding(top = 12.dp)) {
-                Divider(color = Color(0xFF1E1E1E))
+                HorizontalDivider(color = Color(0xFF1E1E1E))
                 Spacer(Modifier.height(10.dp))
 
                 // Manual path

@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -410,7 +411,7 @@ fun BrowserToolbar(
 
             // Back / Fwd / Reload
             IconButton(onClick = onBack, enabled = canGoBack, modifier = Modifier.size(40.dp)) {
-                Icon(Icons.Filled.ArrowBack, "Back",
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back",
                     tint = if (canGoBack) Color.White else Color(0xFF3A3A3A), modifier = Modifier.size(20.dp))
             }
             IconButton(onClick = onForward, enabled = canGoForward, modifier = Modifier.size(40.dp)) {

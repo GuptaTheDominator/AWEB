@@ -1,5 +1,7 @@
 package com.aweb.browser.lifecycle
 
+@file:Suppress("DEPRECATION")
+
 import android.util.Log
 import com.aweb.browser.data.entity.TabEntity
 import com.aweb.browser.data.entity.WorkspaceEntity

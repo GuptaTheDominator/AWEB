@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -80,7 +81,7 @@ fun WorkspaceSidebar(
             }
 
             Spacer(Modifier.height(8.dp))
-            Divider(color = Color(0xFF2A2A2A))
+            HorizontalDivider(color = Color(0xFF2A2A2A))
             Spacer(Modifier.height(8.dp))
 
             Text(
@@ -109,7 +110,7 @@ fun WorkspaceSidebar(
                 }
             }
 
-            Divider(color = Color(0xFF2A2A2A))
+            HorizontalDivider(color = Color(0xFF2A2A2A))
 
             // ── Memory status ─────────────────────────────────────────────
             if (activeTabs.isNotEmpty()) {
@@ -120,7 +121,7 @@ fun WorkspaceSidebar(
                 )
             }
 
-            Divider(color = Color(0xFF2A2A2A))
+            HorizontalDivider(color = Color(0xFF2A2A2A))
 
             // ── New workspace button ───────────────────────────────────────
             TextButton(
@@ -236,7 +237,7 @@ private fun WorkspaceItem(
                 leadingIcon = { Icon(Icons.Filled.DeleteSweep, null, tint = Color(0xFFFFB74D)) },
                 onClick = { showMenu = false; onClearData() },
             )
-            Divider(color = Color(0xFF333333))
+            HorizontalDivider(color = Color(0xFF333333))
             DropdownMenuItem(
                 text    = { Text("Delete workspace", color = Color(0xFFCF6679)) },
                 leadingIcon = { Icon(Icons.Filled.Delete, null, tint = Color(0xFFCF6679)) },

@@ -1,3 +1,41 @@
+## [v1.0.7] — 2026-06-12
+
+### Fixed — deep codebase scan (22 issues resolved)
+
+**Deprecated API fixes (compiler warnings → clean):**
+- Replaced `Divider()` with `HorizontalDivider()` in 9 Compose files
+  (BookmarksPanel, DiagnosticsScreen, KeepAlivePanel, MemoryDashboardScreen,
+  SettingsScreen, HyperOsSetupScreen, TabOverviewScreen, TabStrip, WorkspaceSidebar)
+- Replaced `Icons.Filled.ArrowBack` with `Icons.AutoMirrored.Filled.ArrowBack`
+  in 5 files (BrowserScreen, DiagnosticsScreen, MemoryDashboardScreen,
+  SettingsScreen, HyperOsSetupScreen) — fixes RTL layout mirroring
+- Added `@file:Suppress("DEPRECATION")` to 3 files using `TRIM_MEMORY_COMPLETE`
+  (MemoryPressureReceiver, TabLifecycleManager, MemoryDashboardScreen)
+- Added `@Suppress("OVERRIDE_DEPRECATION")` to `onTrimMemory` override
+  in MemoryPressureReceiver
+
+**Data integrity fix:**
+- Added `@Transaction` to `TabDao.setActive()` — prevents race condition
+  where is_active flags could be left in an inconsistent state if two
+  concurrent writes happened simultaneously
+
+**Type safety fix:**
+- `GeckoResult.fromValue(null)` → `GeckoResult.fromValue<Void>(null)`
+  in FindInPageHandler — explicit type parameter for GeckoView 132
+
+**Code clarity:**
+- `runBlocking` in CrashRecoveryManager annotated with
+  `@Suppress("BlockingMethodInNonBlockingContext")` and documented:
+  it is intentional — the process is dying and we must write synchronously
+
+**README.md:**
+- Full rewrite with badges, version history table, architecture diagram,
+  HyperOS setup table with explanations, install instructions
+- Added warning about step 3 (HyperOS Battery Saver No Restrictions)
+  being the critical setting to prevent LMKD kills
+
+---
+
 ## [v1.0.5] — 2026-06-11
 
 ### Fixed — startup crash (UI shows for 1 second then closes)

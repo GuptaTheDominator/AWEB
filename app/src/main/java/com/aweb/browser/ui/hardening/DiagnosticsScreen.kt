@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,11 +55,11 @@ fun DiagnosticsScreen(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
             IconButton(onClick = onDismiss) {
-                Icon(Icons.Filled.ArrowBack, "Back", tint = Color.White)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
             }
             Text("Diagnostics", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
-        Divider(color = Color(0xFF1E1E1E))
+        HorizontalDivider(color = Color(0xFF1E1E1E))
 
         // ── App info ──────────────────────────────────────────────────────
         DiagSection("App") {

@@ -54,7 +54,10 @@ class CrashRecoveryManager(
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             Log.e(TAG, "Uncaught exception on ${thread.name}", throwable)
             try {
-                // Write synchronously — process is about to die
+                // runBlocking is intentional here: the process is about to die
+                // and we MUST write synchronously before the JVM exits.
+                // This runs on the UncaughtExceptionHandler thread (not Main), so no deadlock.
+                @Suppress("BlockingMethodInNonBlockingContext")
                 runBlocking {
                     context.crashDataStore.edit { prefs ->
                         prefs[KEY_CLEAN] = false

@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -105,7 +106,7 @@ fun TabOverviewScreen(
                 }
             }
 
-            Divider(color = Color(0xFF2A2A2A))
+            HorizontalDivider(color = Color(0xFF2A2A2A))
 
             LazyVerticalGrid(
                 columns               = GridCells.Fixed(2),
@@ -276,7 +277,7 @@ private fun TabCard(
                 },
                 onClick = { showMenu = false; onToggleKeepAlive() },
             )
-            Divider(color = Color(0xFF333333))
+            HorizontalDivider(color = Color(0xFF333333))
             DropdownMenuItem(
                 text = { Text("Close tab", color = Color(0xFFCF6679)) },
                 leadingIcon = { Icon(Icons.Filled.Close, null, tint = Color(0xFFCF6679)) },

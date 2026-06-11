@@ -1,5 +1,7 @@
 package com.aweb.browser.lifecycle
 
+@file:Suppress("DEPRECATION")
+
 import android.content.ComponentCallbacks2
 import android.content.res.Configuration
 import android.util.Log

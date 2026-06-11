@@ -49,7 +49,7 @@ class FindInPageHandler @Inject constructor() {
                     found   = finderResult.found,
                 )
             }
-            GeckoResult.fromValue(null)
+            GeckoResult.fromValue<Void>(null)
         }
     }
 
