@@ -1,0 +1,141 @@
+name: Build & Release APK
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'          # triggers on v1.0.0, v1.0.1, etc.
+  workflow_dispatch:       # manual trigger from GitHub Actions UI
+    inputs:
+      release_tag:
+        description: 'Release tag (e.g. v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  build:
+    name: Build Signed Release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+
+      # ── 1. Checkout ──────────────────────────────────────────────────────
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── 2. Java 17 ───────────────────────────────────────────────────────
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      # ── 3. Android SDK ───────────────────────────────────────────────────
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # ── 4. Gradle cache ──────────────────────────────────────────────────
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', '**/libs.versions.toml') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      # ── 5. Gradle wrapper ────────────────────────────────────────────────
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      # ── 6. Decode keystore from GitHub Secret ────────────────────────────
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > aweb-release.jks
+          echo "Keystore decoded: $(ls -lh aweb-release.jks)"
+
+      # ── 7. Write keystore.properties ─────────────────────────────────────
+      - name: Write keystore.properties
+        run: |
+          cat > keystore.properties << EOF
+          storeFile=../aweb-release.jks
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          EOF
+
+      # ── 8. Run unit tests ─────────────────────────────────────────────────
+      - name: Run unit tests
+        run: ./gradlew test --no-daemon
+        continue-on-error: false
+
+      # ── 9. Build release APK ──────────────────────────────────────────────
+      - name: Build release APK
+        run: |
+          ./gradlew assembleRelease \
+            --no-daemon \
+            --build-cache \
+            -Pandroid.useAndroidX=true \
+            -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseParallelGC"
+
+      # ── 10. Rename APK ────────────────────────────────────────────────────
+      - name: Rename APK
+        run: |
+          TAG="${{ github.event.inputs.release_tag || github.ref_name }}"
+          mv app/build/outputs/apk/release/app-release.apk \
+             app/build/outputs/apk/release/AWEB-${TAG}.apk
+          echo "APK: $(ls -lh app/build/outputs/apk/release/AWEB-${TAG}.apk)"
+          echo "APK_PATH=app/build/outputs/apk/release/AWEB-${TAG}.apk" >> $GITHUB_ENV
+          echo "RELEASE_TAG=${TAG}" >> $GITHUB_ENV
+
+      # ── 11. Upload APK artifact ───────────────────────────────────────────
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AWEB-release-apk
+          path: ${{ env.APK_PATH }}
+          retention-days: 30
+
+      # ── 12. Create GitHub Release ─────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: "AWEB ${{ env.RELEASE_TAG }}"
+          body: |
+            ## AWEB ${{ env.RELEASE_TAG }} — Personal Android Browser
+
+            ### What's inside
+            - **9 phases** of development — all complete
+            - GeckoView (Firefox engine) for true workspace isolation
+            - Multiple isolated browser workspaces (separate cookies, logins, sessions)
+            - Automatic tab lifecycle management (Active → Recent → Unloaded)
+            - Keep Alive tabs for WhatsApp Web, dashboards, long-running sessions
+            - Conservative / Balanced / Performance memory modes
+            - 24/7 HyperOS survival (foreground service + WorkManager health check)
+            - Downloads, file upload, fullscreen video, find-in-page, bookmarks
+            - Desktop/Mobile mode toggle
+            - Crash recovery with clean restore from Room DB
+            - Memory dashboard with pressure simulation
+
+            ### Install on Redmi Pad SE 4G
+            ```bash
+            adb install -r AWEB-${{ env.RELEASE_TAG }}.apk
+            ```
+
+            ### After install
+            Open AWEB → follow the HyperOS Setup Guide (5 steps) for best 24/7 survival.
+
+            ### Security
+            - All cloud backup disabled
+            - No incognito mode
+            - Workspace isolation via GeckoView contextId
+            - Camera/mic/location: runtime permission only
+          files: ${{ env.APK_PATH }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
