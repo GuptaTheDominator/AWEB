@@ -8,7 +8,7 @@ activity-compose    = "1.9.0"
 navigation-compose  = "2.8.0-beta02"
 room                = "2.6.1"
 work                = "2.9.0"
-geckoview           = "128.0.20240606095445"   # latest stable channel
+geckoview           = "132.0.20240929094629"   # latest confirmed available nightly-omni
 coroutines          = "1.8.1"
 lifecycle           = "2.8.2"
 datastore           = "1.1.1"
@@ -49,7 +49,7 @@ hilt-work                      = { group = "androidx.hilt",            name = "h
 hilt-navigation-compose        = { group = "androidx.hilt",            name = "hilt-navigation-compose", version = "1.2.0" }
 
 # GeckoView
-geckoview                      = { group = "org.mozilla.geckoview",    name = "geckoview-default",     version.ref = "geckoview" }
+geckoview                      = { group = "org.mozilla.geckoview",    name = "geckoview-nightly-omni", version.ref = "geckoview" }
 startup                        = { group = "androidx.startup",          name = "startup-runtime",        version.ref = "startup" }
 
 # Coroutines
