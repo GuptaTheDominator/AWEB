@@ -8,17 +8,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Manages the mapping of tab → [GeckoSessionWrapper].
- *
- * Each tab has its own GeckoSessionWrapper. All tabs in the same workspace
- * share the workspace's contextId for cookie/storage isolation.
- */
 @Singleton
 class TabSessionManager @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
-
     companion object {
         private const val TAG = "TabSessionManager"
     }
@@ -27,42 +20,52 @@ class TabSessionManager @Inject constructor(
 
     fun get(tabId: String): GeckoSessionWrapper? = sessions[tabId]
 
+    /**
+     * Gets or creates a GeckoSessionWrapper for a tab.
+     * Throws if GeckoRuntime fails — caller (TabViewModel.safeGetSession) handles retries.
+     */
     fun getOrCreate(tab: TabEntity, workspace: WorkspaceEntity): GeckoSessionWrapper {
         return sessions.getOrPut(tab.id) {
-            Log.i(TAG, "Creating session for tab '${tab.title}' ws='${workspace.name}'")
-            GeckoSessionWrapper(
-                contextId    = workspace.contextId,
-                appContext   = context,
-            ).also { wrapper ->
-                wrapper.open()
-                if (tab.url.isNotBlank() && tab.url != "about:blank") {
-                    wrapper.loadUrl(tab.url)
-                }
+            Log.i(TAG, "Creating session tab='${tab.title}' ws='${workspace.name}'")
+            val wrapper = GeckoSessionWrapper(
+                contextId  = workspace.contextId,
+                appContext = context,
+            )
+            wrapper.open()   // may throw if GeckoRuntime not ready — let caller retry
+            val safeUrl = tab.url.takeIf { it.isNotBlank() && it != "about:blank" }
+            if (safeUrl != null) {
+                try { wrapper.loadUrl(safeUrl) }
+                catch (e: Exception) { Log.w(TAG, "Initial loadUrl failed: ${e.message}") }
             }
+            wrapper
         }
     }
 
     fun setActiveTab(activeTabId: String, allTabIds: List<String>) {
         allTabIds.forEach { id ->
-            sessions[id]?.session?.setActive(id == activeTabId)
+            try { sessions[id]?.session?.setActive(id == activeTabId) }
+            catch (e: Exception) { Log.w(TAG, "setActive($id): ${e.message}") }
         }
-        Log.d(TAG, "Active tab set: $activeTabId")
     }
 
     fun unload(tabId: String) {
-        sessions.remove(tabId)?.close()
+        try { sessions.remove(tabId)?.close() }
+        catch (e: Exception) { Log.w(TAG, "unload($tabId): ${e.message}") }
         Log.d(TAG, "Unloaded tab $tabId")
     }
 
     fun closeAllForWorkspace(workspaceTabIds: List<String>) {
-        workspaceTabIds.forEach { id -> sessions.remove(id)?.close() }
-        Log.i(TAG, "Closed ${workspaceTabIds.size} sessions for workspace")
+        workspaceTabIds.forEach { id ->
+            try { sessions.remove(id)?.close() }
+            catch (e: Exception) { Log.w(TAG, "closeForWs($id): ${e.message}") }
+        }
     }
 
     fun closeAll() {
-        sessions.values.forEach { it.close() }
+        sessions.values.forEach {
+            try { it.close() } catch (e: Exception) { Log.w(TAG, "closeAll: ${e.message}") }
+        }
         sessions.clear()
-        Log.i(TAG, "All sessions closed")
     }
 
     val liveSessionCount: Int get() = sessions.size

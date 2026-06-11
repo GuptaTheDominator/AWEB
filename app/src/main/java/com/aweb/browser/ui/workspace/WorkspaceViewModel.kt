@@ -1,5 +1,6 @@
 package com.aweb.browser.ui.workspace
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aweb.browser.AppState
@@ -12,6 +13,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+private const val TAG = "WorkspaceViewModel"
 
 data class WorkspaceUiState(
     val workspaces      : List<WorkspaceEntity> = emptyList(),
@@ -34,33 +37,64 @@ class WorkspaceViewModel @Inject constructor(
     val uiState: StateFlow<WorkspaceUiState> = _uiState.asStateFlow()
 
     init {
+        // Load workspaces
         viewModelScope.launch {
-            repo.ensureDefaultWorkspace()
-            repo.workspaces.collect { list ->
-                val active = list.firstOrNull { it.isActive } ?: list.firstOrNull()
-                _uiState.update {
-                    it.copy(workspaces = list, activeWorkspace = active, isLoading = false)
-                }
+            try {
+                repo.ensureDefaultWorkspace()
+            } catch (e: Exception) {
+                Log.e(TAG, "ensureDefaultWorkspace failed: ${e.message}", e)
+            }
+
+            try {
+                repo.workspaces
+                    .catch { e ->
+                        Log.e(TAG, "Workspace flow error: ${e.message}", e)
+                        emit(emptyList())
+                    }
+                    .collect { list ->
+                        val active = list.firstOrNull { it.isActive } ?: list.firstOrNull()
+                        _uiState.update {
+                            it.copy(
+                                workspaces      = list,
+                                activeWorkspace = active,
+                                isLoading       = false,
+                            )
+                        }
+                    }
+            } catch (e: Exception) {
+                Log.e(TAG, "Workspace collect failed: ${e.message}", e)
+                _uiState.update { it.copy(isLoading = false) }
             }
         }
 
-        // Propagate memory mode + keep-alive cap changes to lifecycle manager
+        // Propagate settings to lifecycle manager
         viewModelScope.launch {
-            combine(
-                settingsRepo.memoryMode,
-                settingsRepo.maxKeepAliveTabs,
-            ) { mode, maxKa -> mode to maxKa }
-                .distinctUntilChanged()
-                .collect { (mode, maxKa) ->
-                    lifecycleManager.applyMemoryMode(mode.key, maxKa)
-                    // Enforce new cap on existing KA tabs immediately
-                    keepAliveManager.enforceCap(AppState.currentTabs, maxKa)
-                }
+            try {
+                combine(
+                    settingsRepo.memoryMode,
+                    settingsRepo.maxKeepAliveTabs,
+                ) { mode, maxKa -> mode to maxKa }
+                    .distinctUntilChanged()
+                    .catch { e -> Log.w(TAG, "Settings flow error: ${e.message}") }
+                    .collect { (mode, maxKa) ->
+                        try {
+                            lifecycleManager.applyMemoryMode(mode.key, maxKa)
+                            keepAliveManager.enforceCap(AppState.currentTabs, maxKa)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "applyMemoryMode: ${e.message}")
+                        }
+                    }
+            } catch (e: Exception) {
+                Log.w(TAG, "Settings combine failed: ${e.message}")
+            }
         }
     }
 
     fun switchWorkspace(workspace: WorkspaceEntity) {
-        viewModelScope.launch { repo.switchActive(workspace.id) }
+        viewModelScope.launch {
+            try { repo.switchActive(workspace.id) }
+            catch (e: Exception) { Log.e(TAG, "switchWorkspace: ${e.message}") }
+        }
     }
 
     fun showCreateDialog()    = _uiState.update { it.copy(showCreateDialog = true) }
@@ -69,15 +103,23 @@ class WorkspaceViewModel @Inject constructor(
     fun createWorkspace(name: String, colorHex: String) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            val ws = repo.createWorkspace(name = name.trim(), colorHex = colorHex)
-            _uiState.update { it.copy(showCreateDialog = false) }
-            switchWorkspace(ws)
+            try {
+                val ws = repo.createWorkspace(name = name.trim(), colorHex = colorHex)
+                _uiState.update { it.copy(showCreateDialog = false) }
+                switchWorkspace(ws)
+            } catch (e: Exception) {
+                Log.e(TAG, "createWorkspace: ${e.message}")
+                _uiState.update { it.copy(showCreateDialog = false) }
+            }
         }
     }
 
     fun renameWorkspace(id: String, newName: String) {
         if (newName.isBlank()) return
-        viewModelScope.launch { repo.renameWorkspace(id, newName.trim()) }
+        viewModelScope.launch {
+            try { repo.renameWorkspace(id, newName.trim()) }
+            catch (e: Exception) { Log.e(TAG, "renameWorkspace: ${e.message}") }
+        }
     }
 
     fun confirmDeleteWorkspace(ws: WorkspaceEntity) =
@@ -87,18 +129,24 @@ class WorkspaceViewModel @Inject constructor(
 
     fun deleteWorkspace(ws: WorkspaceEntity) {
         viewModelScope.launch {
-            repo.deleteWorkspace(ws.id)
-            _uiState.update { it.copy(showDeleteDialog = null) }
-            val remaining = repo.getAll()
-            if (remaining.isNotEmpty()) switchWorkspace(remaining.first())
+            try {
+                repo.deleteWorkspace(ws.id)
+                _uiState.update { it.copy(showDeleteDialog = null) }
+                val remaining = repo.getAll()
+                if (remaining.isNotEmpty()) switchWorkspace(remaining.first())
+            } catch (e: Exception) {
+                Log.e(TAG, "deleteWorkspace: ${e.message}")
+                _uiState.update { it.copy(showDeleteDialog = null) }
+            }
         }
     }
 
-    fun clearWorkspaceData(ws: WorkspaceEntity) {
-        // Gecko storage clear handled in TabSessionManager on next workspace restore
-    }
+    fun clearWorkspaceData(ws: WorkspaceEntity) { /* handled by TabSessionManager */ }
 
     fun reorderWorkspaces(orderedIds: List<String>) {
-        viewModelScope.launch { repo.reorder(orderedIds) }
+        viewModelScope.launch {
+            try { repo.reorder(orderedIds) }
+            catch (e: Exception) { Log.e(TAG, "reorderWorkspaces: ${e.message}") }
+        }
     }
 }

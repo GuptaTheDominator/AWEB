@@ -11,8 +11,9 @@ import org.mozilla.geckoview.*
 import org.mozilla.geckoview.GeckoSession.*
 
 /**
- * Wraps a single [GeckoSession] and exposes observable browser state as [StateFlow]s.
- * Compiled against GeckoView nightly-omni 132.0.20240929094629.
+ * Wraps a single [GeckoSession] and exposes observable browser state.
+ * All GeckoView calls are wrapped in try-catch to prevent crashes propagating
+ * to the UI layer.
  */
 class GeckoSessionWrapper(
     private val contextId         : String? = null,
@@ -50,44 +51,68 @@ class GeckoSessionWrapper(
     val session: GeckoSession = createSession()
 
     private fun createSession(): GeckoSession {
-        val sb = GeckoSessionSettings.Builder()
-            .usePrivateMode(false)
-            .allowJavascript(true)
-        if (contextId != null) sb.contextId(contextId)
-        val s = GeckoSession(sb.build())
-        s.navigationDelegate = buildNavigationDelegate()
-        s.progressDelegate   = buildProgressDelegate()
-        s.contentDelegate    = buildContentDelegate()
-        if (permissionHandler != null && appContext != null) {
-            s.permissionDelegate = permissionHandler.buildPermissionDelegate(appContext)
+        return try {
+            val sb = GeckoSessionSettings.Builder()
+                .usePrivateMode(false)
+                .allowJavascript(true)
+            if (contextId != null) sb.contextId(contextId)
+            val s = GeckoSession(sb.build())
+            s.navigationDelegate = buildNavigationDelegate()
+            s.progressDelegate   = buildProgressDelegate()
+            s.contentDelegate    = buildContentDelegate()
+            if (permissionHandler != null && appContext != null) {
+                try { s.permissionDelegate = permissionHandler.buildPermissionDelegate(appContext) }
+                catch (e: Exception) { Log.w(TAG, "permissionDelegate setup failed: ${e.message}") }
+            }
+            s
+        } catch (e: Exception) {
+            Log.e(TAG, "createSession fallback: ${e.message}", e)
+            // Return a bare session without delegates rather than crashing
+            GeckoSession()
         }
-        return s
     }
 
     fun open() {
-        if (!session.isOpen) {
-            val ctx = appContext ?: return
-            val rt  = GeckoRuntimeManager.getOrInit(ctx)
+        if (session.isOpen) return
+        val ctx = appContext ?: run {
+            Log.w(TAG, "open() called with null appContext — skipping")
+            return
+        }
+        try {
+            val rt = GeckoRuntimeManager.getOrInit(ctx)
             session.open(rt)
             Log.d(TAG, "Session opened contextId=$contextId")
+        } catch (e: Exception) {
+            Log.e(TAG, "Session open() failed: ${e.message}", e)
         }
     }
 
     fun close() {
-        if (session.isOpen) {
-            session.close()
-            Log.d(TAG, "Session closed contextId=$contextId")
+        try {
+            if (session.isOpen) {
+                session.close()
+                Log.d(TAG, "Session closed contextId=$contextId")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Session close() failed: ${e.message}")
         }
     }
 
-    fun loadUrl(url: String) { open(); session.loadUri(url) }
-    fun goBack()             { session.goBack() }
-    fun goForward()          { session.goForward() }
-    fun reload()             { session.reload() }
-    fun stopLoading()        { session.stop() }
+    fun loadUrl(url: String) {
+        try {
+            open()
+            session.loadUri(url)
+        } catch (e: Exception) {
+            Log.e(TAG, "loadUrl($url) failed: ${e.message}")
+        }
+    }
+
+    fun goBack()      { try { session.goBack() }    catch (e: Exception) { Log.w(TAG, "goBack: ${e.message}") } }
+    fun goForward()   { try { session.goForward() } catch (e: Exception) { Log.w(TAG, "goForward: ${e.message}") } }
+    fun reload()      { try { session.reload() }    catch (e: Exception) { Log.w(TAG, "reload: ${e.message}") } }
+    fun stopLoading() { try { session.stop() }      catch (e: Exception) { Log.w(TAG, "stop: ${e.message}") } }
 
     private fun buildNavigationDelegate() = object : NavigationDelegate {
-        // GeckoView 132: onLocationChange(session, url, perms, hasUserGesture: Boolean)
         override fun onLocationChange(
             session        : GeckoSession,
             url            : String?,
@@ -101,11 +126,8 @@ class GeckoSessionWrapper(
         override fun onCanGoForward(session: GeckoSession, canGoForward: Boolean) {
             _canGoForward.value = canGoForward
         }
-        override fun onNewSession(
-            session : GeckoSession,
-            uri     : String,
-        ): GeckoResult<GeckoSession>? {
-            session.loadUri(uri)
+        override fun onNewSession(session: GeckoSession, uri: String): GeckoResult<GeckoSession>? {
+            try { session.loadUri(uri) } catch (e: Exception) { Log.w(TAG, "onNewSession: ${e.message}") }
             return null
         }
     }
@@ -126,37 +148,40 @@ class GeckoSessionWrapper(
         override fun onSecurityChange(
             session      : GeckoSession,
             securityInfo : ProgressDelegate.SecurityInformation,
-        ) { _isSecure.value = securityInfo.isSecure }
+        ) {
+            try { _isSecure.value = securityInfo.isSecure }
+            catch (e: Exception) { Log.w(TAG, "onSecurityChange: ${e.message}") }
+        }
     }
 
     private fun buildContentDelegate() = object : ContentDelegate {
         override fun onTitleChange(session: GeckoSession, title: String?) {
             _title.value = title ?: _url.value
         }
-
         override fun onFullScreen(session: GeckoSession, fullScreen: Boolean) {
-            Log.d(TAG, "Fullscreen: $fullScreen")
-            onFullscreenChange?.invoke(fullScreen)
+            try { onFullscreenChange?.invoke(fullScreen) }
+            catch (e: Exception) { Log.w(TAG, "onFullScreen: ${e.message}") }
         }
-
-        // GeckoView 132: WebResponse has .uri and .headers — no .filename field
         override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
-            val url      = response.uri ?: return
-            val mime     = response.headers["Content-Type"]?.split(";")?.first()?.trim()
-            val size     = response.headers["Content-Length"]?.toLongOrNull() ?: -1L
-            val filename = response.headers["Content-Disposition"]
-                ?.let { cd ->
-                    Regex("""filename\*?=(?:UTF-8'')?["']?([^"';\s]+)""", RegexOption.IGNORE_CASE)
-                        .find(cd)?.groupValues?.getOrNull(1)
-                } ?: url.substringAfterLast('/').substringBefore('?').takeIf { it.isNotBlank() }
-                ?: "download"
+            try {
+                val url      = response.uri ?: return
+                val mime     = response.headers["Content-Type"]?.split(";")?.first()?.trim()
+                val size     = response.headers["Content-Length"]?.toLongOrNull() ?: -1L
+                val filename = response.headers["Content-Disposition"]
+                    ?.let { cd ->
+                        Regex("""filename\*?=(?:UTF-8'')?["']?([^"';\s]+)""", RegexOption.IGNORE_CASE)
+                            .find(cd)?.groupValues?.getOrNull(1)
+                    } ?: url.substringAfterLast('/').substringBefore('?')
+                        .takeIf { it.isNotBlank() } ?: "download"
 
-            if (appContext != null && downloadHandler != null) {
-                permissionHandler?.requestDownloadConfirmation(url, filename, mime, size)
-                    ?: downloadHandler.enqueueDownload(appContext, url, filename, mime, size)
+                if (appContext != null && downloadHandler != null) {
+                    permissionHandler?.requestDownloadConfirmation(url, filename, mime, size)
+                        ?: downloadHandler.enqueueDownload(appContext, url, filename, mime, size)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "onExternalResponse: ${e.message}")
             }
         }
-
-        override fun onCloseRequest(session: GeckoSession) { /* handled by tab close */ }
+        override fun onCloseRequest(session: GeckoSession) {}
     }
 }

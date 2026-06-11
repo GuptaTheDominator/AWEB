@@ -94,19 +94,27 @@ fun BrowserScreen(
     val keepAliveCount = tabState.tabs.count { it.keepAlive }
 
     // Check bookmark status whenever URL changes
-    LaunchedEffect(url) { if (url.isNotBlank()) featureViewModel.checkBookmark(url) }
+    LaunchedEffect(url) {
+        try { if (url.isNotBlank()) featureViewModel.checkBookmark(url) }
+        catch (e: Exception) { android.util.Log.w("BrowserScreen", "checkBookmark: ${e.message}") }
+    }
 
     // Attach session to FindInPageHandler
     LaunchedEffect(session) {
-        session?.session?.let { featureViewModel.attachFindSession(it) }
+        try { session?.session?.let { featureViewModel.attachFindSession(it) } }
+        catch (e: Exception) { android.util.Log.w("BrowserScreen", "attachFindSession: ${e.message}") }
     }
 
     // Fullscreen callback from GeckoView
     LaunchedEffect(session) {
-        session?.onFullscreenChange = { fs ->
-            if (fs) activity?.let { featureViewModel.enterFullscreen(it) }
-            else    activity?.let { featureViewModel.exitFullscreen(it) }
-        }
+        try {
+            session?.onFullscreenChange = { fs ->
+                try {
+                    if (fs) activity?.let { featureViewModel.enterFullscreen(it) }
+                    else    activity?.let { featureViewModel.exitFullscreen(it) }
+                } catch (e: Exception) { android.util.Log.w("BrowserScreen", "fullscreen: ${e.message}") }
+            }
+        } catch (e: Exception) { android.util.Log.w("BrowserScreen", "fullscreenEffect: ${e.message}") }
     }
 
     // ── Overlay / dialog state ────────────────────────────────────────────
@@ -509,15 +517,36 @@ fun BrowserToolbar(
 fun GeckoViewComposable(session: GeckoSession, modifier: Modifier = Modifier) {
     AndroidView(
         factory = { ctx ->
-            GeckoView(ctx).apply {
-                layoutParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                )
-                setSession(session)
+            try {
+                GeckoView(ctx).apply {
+                    layoutParams = FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    )
+                    try { setSession(session) }
+                    catch (e: Exception) {
+                        android.util.Log.e("GeckoViewComposable", "setSession failed: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("GeckoViewComposable", "GeckoView creation failed: ${e.message}")
+                android.widget.FrameLayout(ctx).apply {
+                    layoutParams = FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    )
+                }
             }
         },
-        update  = { v -> if (v.session != session) { v.releaseSession(); v.setSession(session) } },
+        update = { v ->
+            if (v is GeckoView) {
+                try {
+                    if (v.session != session) { v.releaseSession(); v.setSession(session) }
+                } catch (e: Exception) {
+                    android.util.Log.e("GeckoViewComposable", "update failed: ${e.message}")
+                }
+            }
+        },
         modifier = modifier,
     )
 }
