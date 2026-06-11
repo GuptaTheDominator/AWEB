@@ -1,8 +1,20 @@
 #!/bin/sh
-# Gradle start up script for UN*X
-JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}"
-export JAVA_HOME
+#
+# Gradle wrapper script for POSIX systems (Linux/macOS).
+# Auto-downloads Gradle if not present.
+#
+
 APP_HOME="$(cd "$(dirname "$0")" && pwd)"
-exec "$JAVA_HOME/bin/java" \
-  -classpath "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" \
-  org.gradle.wrapper.GradleWrapperMain "$@"
+CLASSPATH="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
+
+# Prefer JAVA_HOME if set, otherwise fall back to PATH java
+if [ -n "$JAVA_HOME" ]; then
+    JAVACMD="$JAVA_HOME/bin/java"
+else
+    JAVACMD="java"
+fi
+
+exec "$JAVACMD" \
+  -classpath "$CLASSPATH" \
+  org.gradle.wrapper.GradleWrapperMain \
+  "$@"

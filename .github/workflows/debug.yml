@@ -1,4 +1,4 @@
-name: Build Debug APK (no signing required)
+name: Build Debug APK
 
 on:
   push:
@@ -9,7 +9,7 @@ jobs:
   build-debug:
     name: Build Debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -37,8 +37,11 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Run unit tests
-        run: ./gradlew test --no-daemon
+      - name: Run JVM unit tests
+        run: |
+          ./gradlew testDebugUnitTest \
+            --no-daemon \
+            -Dorg.gradle.jvmargs="-Xmx2g"
 
       - name: Build debug APK
         run: |

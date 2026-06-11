@@ -18,8 +18,11 @@ Thumbs.db
 
 # Kotlin / Java compiled
 *.class
-*.jar
 *.aar
+
+# JARs — except Gradle wrapper (required for CI)
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
 
 # Logs
 *.log
