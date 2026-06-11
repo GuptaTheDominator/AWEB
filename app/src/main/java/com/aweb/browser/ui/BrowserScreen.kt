@@ -1,3 +1,8 @@
+@file:OptIn(
+    androidx.compose.foundation.ExperimentalFoundationApi::class,
+    androidx.compose.animation.ExperimentalAnimationApi::class,
+)
+
 package com.aweb.browser.ui
 
 import android.Manifest
@@ -7,6 +12,7 @@ import android.widget.FrameLayout
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -234,17 +240,13 @@ fun BrowserScreen(
                     }
                 }
 
-                // Find-in-page bar (bottom of web view)
-                AnimatedVisibility(
-                    visible  = findVisible && !isFullscreen,
-                    enter    = slideInVertically { it },
-                    exit     = slideOutVertically { it },
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                ) {
+                // Find-in-page bar — shown at the bottom of the web view area
+                if (findVisible && !isFullscreen) {
                     FindInPageBar(
-                        result  = findResult,
-                        onFind  = { q, fwd -> featureViewModel.find(q, fwd) },
-                        onClose = { featureViewModel.hideFind() },
+                        result   = findResult,
+                        onFind   = { q, fwd -> featureViewModel.find(q, fwd) },
+                        onClose  = { featureViewModel.hideFind() },
+                        modifier = Modifier.align(Alignment.BottomCenter),
                     )
                 }
             }

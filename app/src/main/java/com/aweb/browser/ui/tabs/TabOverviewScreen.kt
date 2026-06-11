@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.aweb.browser.ui.tabs
 
 import androidx.compose.animation.*
