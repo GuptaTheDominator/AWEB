@@ -47,11 +47,12 @@ class ServiceManager @Inject constructor() {
             action = AwebForegroundService.ACTION_UPDATE_NOTIF
         }
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            // Use startService (not startForegroundService) for notification-only updates.
+            // startForegroundService throws ForegroundServiceStartNotAllowedException on
+            // API 34+ when called from the background. Since the service is already running
+            // as a foreground service (started in Application.onCreate), startService is
+            // sufficient — it delivers the ACTION_UPDATE_NOTIF intent to onStartCommand.
+            context.startService(intent)
         } catch (e: Exception) {
             Log.w(TAG, "Notification update failed: ${e.message}")
         }

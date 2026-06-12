@@ -15,14 +15,30 @@ class WorkspaceSessionManager @Inject constructor(
     private val lock     = Any()
     private val sessions = LinkedHashMap<String, GeckoSessionWrapper>()
 
-    fun getOrCreate(workspace: WorkspaceEntity): GeckoSessionWrapper =
-        synchronized(lock) {
-            sessions.getOrPut(workspace.id) {
-                Log.i(TAG, "Creating wrapper ws=${workspace.name}")
-                GeckoSessionWrapper(contextId = workspace.contextId, appContext = context)
-                    .also { it.open() }
+    fun getOrCreate(workspace: WorkspaceEntity): GeckoSessionWrapper {
+        // Fast path — already exists
+        synchronized(lock) { sessions[workspace.id] }?.let { return it }
+
+        // Slow path — create outside the lock so open() is never called while holding it.
+        // Calling open() inside synchronized(lock) is unsafe because open() dispatches to
+        // the Main thread via mainHandler.post, and any Main-thread code that then tries
+        // to acquire the same lock would deadlock.
+        Log.i(TAG, "Creating wrapper ws=${workspace.name}")
+        val newWrapper = GeckoSessionWrapper(contextId = workspace.contextId, appContext = context)
+        newWrapper.open()
+
+        return synchronized(lock) {
+            val existing = sessions[workspace.id]
+            if (existing != null) {
+                // We lost the race — discard ours
+                newWrapper.close()
+                existing
+            } else {
+                sessions[workspace.id] = newWrapper
+                newWrapper
             }
         }
+    }
 
     fun get(wsId: String): GeckoSessionWrapper? = synchronized(lock) { sessions[wsId] }
 

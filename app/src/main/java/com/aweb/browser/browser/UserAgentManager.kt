@@ -19,8 +19,8 @@ class UserAgentManager @Inject constructor() {
 
     enum class UaMode { MOBILE, DESKTOP }
 
-    // session ID → current mode
-    private val modes = mutableMapOf<String, UaMode>()
+    // session ID → current mode  (ConcurrentHashMap for thread-safe access)
+    private val modes = java.util.concurrent.ConcurrentHashMap<String, UaMode>()
 
     fun getMode(sessionId: String): UaMode =
         modes[sessionId] ?: UaMode.MOBILE

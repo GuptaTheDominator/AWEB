@@ -64,28 +64,31 @@ class BrowserPermissionHandler @Inject constructor() {
             Log.d(TAG, "Content permission: type=${perm.permission} origin=${perm.uri}")
             return when (perm.permission) {
                 PermissionDelegate.PERMISSION_GEOLOCATION -> {
+                    // Return a GeckoResult that the UI resolves when the user taps Allow/Deny.
+                    val result = GeckoResult<Int>()
                     _requests.tryEmit(
                         PermissionRequest.LocationRequest(
                             origin   = perm.uri ?: "this site",
                             callback = object : PermissionDelegate.Callback {
-                                override fun grant()  {}
-                                override fun reject() {}
+                                override fun grant()  { result.complete(PermissionDelegate.ContentPermission.VALUE_ALLOW) }
+                                override fun reject() { result.complete(PermissionDelegate.ContentPermission.VALUE_DENY) }
                             },
                         )
                     )
-                    null
+                    result
                 }
                 PermissionDelegate.PERMISSION_DESKTOP_NOTIFICATION -> {
+                    val result = GeckoResult<Int>()
                     _requests.tryEmit(
                         PermissionRequest.NotificationRequest(
                             origin   = perm.uri ?: "this site",
                             callback = object : PermissionDelegate.Callback {
-                                override fun grant()  {}
-                                override fun reject() {}
+                                override fun grant()  { result.complete(PermissionDelegate.ContentPermission.VALUE_ALLOW) }
+                                override fun reject() { result.complete(PermissionDelegate.ContentPermission.VALUE_DENY) }
                             },
                         )
                     )
-                    null
+                    result
                 }
                 else -> null
             }

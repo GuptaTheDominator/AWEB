@@ -34,13 +34,22 @@ interface TabDao {
     @Query("UPDATE tabs SET is_active = 0 WHERE workspace_id = :workspaceId")
     suspend fun clearActiveFlags(workspaceId: String)
 
-    @Transaction
     @Query("""
         UPDATE tabs SET is_active = 1, last_accessed = :now, updated_at = :now,
                         last_lifecycle_state = 'active'
         WHERE id = :tabId
     """)
-    suspend fun setActive(tabId: String, now: Long = System.currentTimeMillis())
+    suspend fun setActiveRaw(tabId: String, now: Long = System.currentTimeMillis())
+
+    /**
+     * Atomically clears all active flags in a workspace then sets the new active tab.
+     * The @Transaction ensures no other DB reader sees a state where 0 tabs are active.
+     */
+    @Transaction
+    suspend fun setActive(workspaceId: String, tabId: String) {
+        clearActiveFlags(workspaceId)
+        setActiveRaw(tabId)
+    }
 
     @Query("""
         UPDATE tabs SET keep_alive = :keepAlive, updated_at = :now WHERE id = :tabId

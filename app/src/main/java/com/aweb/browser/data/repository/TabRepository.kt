@@ -61,8 +61,10 @@ class TabRepository @Inject constructor(
     }
 
     suspend fun setActiveTab(workspaceId: String, tabId: String) {
-        dao.clearActiveFlags(workspaceId)
-        dao.setActive(tabId)
+        // Single @Transaction call — atomically clears old active flag and sets new one.
+        // Previously these were two separate calls with no transaction, creating a window
+        // where the DB had zero active tabs (causing safeCollect to seed a duplicate tab).
+        dao.setActive(workspaceId, tabId)
     }
 
     suspend fun updateTitleAndUrl(tabId: String, title: String, url: String) {

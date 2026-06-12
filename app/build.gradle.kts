@@ -23,8 +23,8 @@ android {
         applicationId  = "com.aweb.browser"
         minSdk         = 29
         targetSdk      = 35
-        versionCode    = 23          // bump for ABI-split release
-        versionName    = "2.3"
+        versionCode    = 24
+        versionName    = "2.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

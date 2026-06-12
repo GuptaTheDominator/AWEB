@@ -321,11 +321,27 @@ fun BrowserScreen(
                 PermissionDialog(
                     request = req,
                     onAllow = {
-                        if (req is BrowserPermissionHandler.PermissionRequest.DownloadRequest)
-                            featureViewModel.confirmDownload(req)
+                        when (req) {
+                            is BrowserPermissionHandler.PermissionRequest.DownloadRequest ->
+                                featureViewModel.confirmDownload(req)
+                            is BrowserPermissionHandler.PermissionRequest.LocationRequest ->
+                                req.callback.grant()   // resolves the GeckoResult<Int>
+                            is BrowserPermissionHandler.PermissionRequest.NotificationRequest ->
+                                req.callback.grant()   // resolves the GeckoResult<Int>
+                            else -> Unit
+                        }
                         pendingPermRequest = null
                     },
-                    onDeny  = { pendingPermRequest = null },
+                    onDeny  = {
+                        when (req) {
+                            is BrowserPermissionHandler.PermissionRequest.LocationRequest ->
+                                req.callback.reject()
+                            is BrowserPermissionHandler.PermissionRequest.NotificationRequest ->
+                                req.callback.reject()
+                            else -> Unit
+                        }
+                        pendingPermRequest = null
+                    },
                 )
             }
         }

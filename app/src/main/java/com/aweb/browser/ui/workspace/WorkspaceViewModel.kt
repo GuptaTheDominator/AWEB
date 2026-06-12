@@ -7,6 +7,8 @@ import com.aweb.browser.AppState
 import com.aweb.browser.data.entity.WorkspaceEntity
 import com.aweb.browser.data.repository.SettingsRepository
 import com.aweb.browser.data.repository.WorkspaceRepository
+import com.aweb.browser.gecko.TabSessionManager
+import com.aweb.browser.gecko.WorkspaceSessionManager
 import com.aweb.browser.lifecycle.TabLifecycleManager
 import com.aweb.browser.ui.keepalive.KeepAliveManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,10 +29,12 @@ data class WorkspaceUiState(
 
 @HiltViewModel
 class WorkspaceViewModel @Inject constructor(
-    private val repo            : WorkspaceRepository,
-    private val settingsRepo    : SettingsRepository,
-    private val lifecycleManager: TabLifecycleManager,
-    private val keepAliveManager: KeepAliveManager,
+    private val repo                  : WorkspaceRepository,
+    private val settingsRepo          : SettingsRepository,
+    private val lifecycleManager      : TabLifecycleManager,
+    private val keepAliveManager      : KeepAliveManager,
+    private val tabSessionManager     : TabSessionManager,
+    private val workspaceSessionManager: WorkspaceSessionManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(WorkspaceUiState())
@@ -141,7 +145,23 @@ class WorkspaceViewModel @Inject constructor(
         }
     }
 
-    fun clearWorkspaceData(ws: WorkspaceEntity) { /* handled by TabSessionManager */ }
+    fun clearWorkspaceData(ws: WorkspaceEntity) {
+        viewModelScope.launch {
+            try {
+                // 1. Close all tab sessions for this workspace
+                val tabs = tabSessionManager.run {
+                    // Collect all tab IDs to close via the public API
+                    AppState.currentTabs.filter { it.workspaceId == ws.id }.map { it.id }
+                }
+                tabSessionManager.closeAllForWorkspace(tabs)
+                // 2. Close the workspace-level session (cookie jar)
+                workspaceSessionManager.closeAndRemove(ws.id)
+                Log.i(TAG, "Cleared session data for workspace '${ws.name}'")
+            } catch (e: Exception) {
+                Log.e(TAG, "clearWorkspaceData: ${e.message}")
+            }
+        }
+    }
 
     fun reorderWorkspaces(orderedIds: List<String>) {
         viewModelScope.launch {

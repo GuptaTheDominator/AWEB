@@ -143,15 +143,14 @@ class GeckoSessionWrapper(
         }
         // We are on Main thread
         if (_session?.isOpen != true) {
-            // Session not open yet — open first, then load
-            if (!_openInFlight) open()
-            // Schedule load after open completes (open() is synchronous on Main,
-            // so if open() succeeded the session is open now; if it needed to
-            // wait for GeckoRuntime, postDelayed will retry)
+            // Session not open yet — open first (open() is synchronous on Main when
+            // GeckoRuntime is ready; if not ready it posts a 500ms retry internally).
+            open()
             if (_session?.isOpen == true) {
                 safeLoad(url)
             } else {
-                // GeckoRuntime wasn't ready; retry after a moment
+                // GeckoRuntime wasn't ready yet (open() posted a 500ms retry).
+                // Schedule our load attempt slightly after that retry fires.
                 mainHandler.postDelayed({ loadUrl(url) }, 600)
             }
         } else {
@@ -211,7 +210,14 @@ class GeckoSessionWrapper(
         override fun onCanGoBack(session: GeckoSession, canGoBack: Boolean) { _canGoBack.value = canGoBack }
         override fun onCanGoForward(session: GeckoSession, canGoForward: Boolean) { _canGoForward.value = canGoForward }
         override fun onNewSession(session: GeckoSession, uri: String): GeckoResult<GeckoSession>? {
-            mainHandler.post { try { session.loadUri(uri) } catch (e: Exception) { Log.w(TAG, "newSess: ${e.message}") } }
+            // Returning null tells GeckoView to block the popup / new-window request.
+            // Previously this loaded the URI on the *parent* session (the one that already
+            // exists), which caused the current page to navigate away unexpectedly.
+            // The correct approach is either:
+            //  (a) return a new GeckoSession for a proper popup — complex, not supported yet.
+            //  (b) return null to block — safe default. Sites that need new windows will
+            //      open them inside the same tab via normal navigation.
+            Log.d(TAG, "onNewSession blocked popup: $uri")
             return null
         }
     }

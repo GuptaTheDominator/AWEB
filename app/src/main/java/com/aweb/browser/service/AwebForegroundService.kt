@@ -5,6 +5,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -36,7 +38,7 @@ class AwebForegroundService : Service() {
         super.onCreate()
         Log.i(TAG, "onCreate")
         try {
-            startForeground(NOTIF_ID, buildNotification())
+            startForegroundCompat()
         } catch (e: Exception) {
             Log.e(TAG, "startForeground failed: ${e.message}")
         }
@@ -54,7 +56,7 @@ class AwebForegroundService : Service() {
             }
             else -> {
                 try {
-                    startForeground(NOTIF_ID, buildNotification())
+                    startForegroundCompat()
                 } catch (e: Exception) {
                     Log.e(TAG, "startForeground in onStartCommand failed: ${e.message}")
                 }
@@ -62,6 +64,20 @@ class AwebForegroundService : Service() {
             }
         }
         return START_STICKY
+    }
+
+    /**
+     * Android 14 (API 34) requires startForeground() to include the service type
+     * declared in the manifest (foregroundServiceType="dataSync").
+     * Omitting it on API 34+ causes an InvalidForegroundServiceTypeException crash.
+     */
+    private fun startForegroundCompat() {
+        val notif = buildNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // API 34
+            startForeground(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            startForeground(NOTIF_ID, notif)
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
