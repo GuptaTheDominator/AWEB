@@ -242,7 +242,13 @@ fun BrowserScreen(
             // ── Web content ───────────────────────────────────────────────
             Box(Modifier.fillMaxSize()) {
                 if (session != null) {
-                    GeckoViewComposable(session = session.session, modifier = Modifier.fillMaxSize())
+                    // Only show GeckoView when session is ready
+                    val geckoSession = session.session
+                    if (geckoSession != null) {
+                        GeckoViewComposable(session = geckoSession, modifier = Modifier.fillMaxSize())
+                    } else {
+                        Box(Modifier.fillMaxSize().background(Color(0xFF0F0F0F)))
+                    }
                 } else {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = Color(0xFF9C6FFF))
@@ -526,11 +532,11 @@ fun GeckoViewComposable(session: GeckoSession, modifier: Modifier = Modifier) {
                     )
                     try { setSession(session) }
                     catch (e: Exception) {
-                        android.util.Log.e("GeckoViewComposable", "setSession failed: ${e.message}")
+                        android.util.Log.e("GeckoViewComposable", "setSession factory: ${e.message}")
                     }
                 }
             } catch (e: Exception) {
-                android.util.Log.e("GeckoViewComposable", "GeckoView creation failed: ${e.message}")
+                android.util.Log.e("GeckoViewComposable", "GeckoView creation: ${e.message}")
                 android.widget.FrameLayout(ctx).apply {
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
@@ -542,9 +548,13 @@ fun GeckoViewComposable(session: GeckoSession, modifier: Modifier = Modifier) {
         update = { v ->
             if (v is GeckoView) {
                 try {
-                    if (v.session != session) { v.releaseSession(); v.setSession(session) }
+                    if (v.session !== session) {
+                        try { v.releaseSession() } catch (_: Exception) {}
+                        try { v.setSession(session) }
+                        catch (e: Exception) { android.util.Log.e("GeckoViewComposable", "update: ${e.message}") }
+                    }
                 } catch (e: Exception) {
-                    android.util.Log.e("GeckoViewComposable", "update failed: ${e.message}")
+                    android.util.Log.e("GeckoViewComposable", "update outer: ${e.message}")
                 }
             }
         },

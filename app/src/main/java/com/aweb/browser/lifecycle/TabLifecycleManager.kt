@@ -76,7 +76,7 @@ class TabLifecycleManager @Inject constructor(
 
             // 1. Promote new active — ensure session is live and Gecko-active
             val activeSession = sessionManager.getOrCreate(newActiveTab, workspace)
-            activeSession.session.setActive(true)
+            activeSession.session?.setActive(true)
             persistState(newActiveTab.id, TabLifecycleState.ACTIVE)
 
             // 2. Demote previous active → RECENT (session stays open, just paused)
@@ -188,7 +188,7 @@ class TabLifecycleManager @Inject constructor(
 
             activeTab?.let {
                 val session = sessionManager.getOrCreate(it, workspace)
-                session.session.setActive(true)
+                session.session?.setActive(true)
                 persistState(it.id, TabLifecycleState.ACTIVE)
                 Log.d(TAG, "Restored active tab: '${it.title}'")
             }

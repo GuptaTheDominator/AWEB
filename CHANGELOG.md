@@ -1,3 +1,37 @@
+## [v1.0.8] — 2026-06-12
+
+### Fixed — CONFIRMED CRASH from logcat analysis (v1.0.6/v1.0.7)
+
+**Root cause identified from logcat (logcat_recording_2026-06-12_05-33-22.txt):**
+
+  FATAL EXCEPTION: DefaultDispatcher-worker-2
+  java.lang.IllegalThreadStateException:
+    Expected thread 2 ("main"), but running on thread 2884 ("DefaultDispatcher-worker-2")
+    at GeckoSession.getSurfaceBounds()
+    at Autofill$Session.getDefaultDimensions()
+    at Autofill$Session.<init>()
+    at GeckoSession.<init>()         <-- GeckoSession() constructor requires Main thread
+    at GeckoSessionWrapper.createSession()
+    at TabSessionManager.getOrCreate()  <-- called from IO dispatcher
+
+Previous fix (v1.0.4) put open() on Main thread but GeckoSession() CONSTRUCTOR
+also requires Main thread. TabLifecycleManager and KeepAliveManager both call
+getOrCreate() from CoroutineScope(Dispatchers.IO), bypassing withContext(Main).
+
+**Fix — GeckoSessionWrapper lazy session pattern:**
+- session property changed from val (eager, in constructor) to lazy @Volatile var
+- GeckoSession() is now created only inside open(), which always dispatches to Main
+- The constructor no longer touches GeckoView at all — safe to call from any thread
+- open() first creates the GeckoSession on Main, then opens it with GeckoRuntime
+- loadUrl() checks session.isOpen and schedules postDelayed if not yet open
+
+**Additional fixes:**
+- GeckoViewComposable: null-safe access to wrapper.session (now nullable)
+- TabSessionManager.setActiveTab: .session?.setActive() null-safe
+- TabLifecycleManager: .session?.setActive() null-safe
+- BrowserScreen: only renders GeckoViewComposable when session != null
+- GeckoViewComposable update block: !(===) identity check before setSession
+
 ## [v1.0.7] — 2026-06-12
 
 ### Fixed — deep codebase scan (22 issues resolved)
