@@ -112,7 +112,7 @@ class AwebApplication : Application(), Configuration.Provider {
      */
     private fun isMainProcess(): Boolean {
         return try {
-            val processName = getProcessName()
+            val processName = readProcessName()
             processName == packageName
         } catch (e: Exception) {
             // If we can't determine, assume main process
@@ -120,10 +120,12 @@ class AwebApplication : Application(), Configuration.Provider {
         }
     }
 
-    private fun getProcessName(): String {
-        // API 28+: Application.getProcessName() is available
+    private fun readProcessName(): String {
+        // API 28+: static Application.getProcessName() is available
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            return Application.getProcessName()
+            return try {
+                Application.getProcessName()
+            } catch (e: Exception) { packageName }
         }
         // API < 28: read from /proc
         return try {
