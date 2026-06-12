@@ -1,3 +1,46 @@
+## [V2.1] — 2026-06-12
+
+### Fixed — Multi-process crash (AwebApplication in child processes)
+
+CONFIRMED from logcat (logcat_recording_2026-06-12_06-30-31.txt):
+
+  pid 29650 = main process com.aweb.browser  
+    → GeckoRuntime ready on main  ✓
+
+  pid 29733 = com.aweb.browser:tab13 (GeckoView child)
+    → AwebApplication.onCreate() runs again  ← THE BUG
+    → GeckoRuntimeManager.init() called again
+    → GeckoRuntime.create() throws:
+       IllegalStateException: Failed to initialize GeckoRuntime
+       (GeckoThread already launched)
+    → Crash cascade → all child processes die → app closes
+
+GeckoView spawns multiple child processes for content rendering
+(tab0..tab39), GPU compositing (:gpu), networking (:socket), etc.
+Android calls Application.onCreate() in EVERY process, including these
+child processes. Our AwebApplication was calling GeckoRuntime.create()
+in every child process, which always fails because GeckoRuntime was
+already created in the main process.
+
+FIX — isMainProcess() guard in AwebApplication:
+  if (!isMainProcess()) return  // child processes do nothing extra
+
+isMainProcess() checks:
+  - API 28+: Application.getProcessName()
+  - API < 28: read /proc/{pid}/cmdline
+  Returns true only if processName == packageName (no ":tab0" suffix)
+
+Only the main process runs:
+  - installExceptionLogger()
+  - createNotificationChannel()
+  - serviceManager.startService()
+  - registerComponentCallbacks()
+  - GeckoRuntimeManager.init()
+  - ServiceHealthWorker.schedule()
+
+Child processes return immediately after super.onCreate(),
+letting GeckoView manage them cleanly.
+
 ## [v1.0.8] — 2026-06-12
 
 ### Fixed — CONFIRMED CRASH from logcat analysis (v1.0.6/v1.0.7)
