@@ -13,15 +13,19 @@ import org.mozilla.geckoview.*
 import org.mozilla.geckoview.GeckoSession.*
 
 /**
- * Wraps a single [GeckoSession] and exposes observable browser state.
+ * Wraps a single [GeckoSession] with thread-safe lazy creation.
  *
- * CRITICAL: GeckoSession() constructor AND GeckoSession.open() BOTH require
- * the Android Main thread (enforced by GeckoView internals via ThreadUtils).
+ * RULES:
+ *  1. GeckoSession() constructor requires the Main thread.
+ *  2. GeckoSession.open() requires the Main thread.
+ *  3. GeckoSession.loadUri() requires the Main thread.
+ *  4. Only ONE open() call may be in-flight at any time.
  *
- * Design: the session is created LAZILY the first time [open] is called,
- * always on the Main thread. This prevents the crash:
- *   IllegalThreadStateException: Expected thread 2 ("main"), but running
- *   on thread N ("DefaultDispatcher-worker-N")
+ * All three are guaranteed here via:
+ *  - Lazy _session created inside open() which enforces Main.
+ *  - @Volatile _openInFlight flag prevents double-open races.
+ *  - loadUrl() always posts safeLoad to mainHandler (Main thread).
+ *  - TabSessionManager.getOrCreate() posts the initial load via loadUrl().
  */
 class GeckoSessionWrapper(
     private val contextId: String? = null,
@@ -31,11 +35,13 @@ class GeckoSessionWrapper(
     var onFullscreenChange: ((Boolean) -> Unit)? = null,
     private val appContext: Context? = null,
 ) {
-    companion object { private const val TAG = "GeckoSessionWrapper" }
+    companion object {
+        private const val TAG = "GeckoSessionWrapper"
+    }
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // StateFlows
+    // ── StateFlows ────────────────────────────────────────────────────────
     private val _url          = MutableStateFlow(""); val url: StateFlow<String> get() = _url
     private val _title        = MutableStateFlow("New Tab"); val title: StateFlow<String> get() = _title
     private val _progress     = MutableStateFlow(0); val progress: StateFlow<Int> get() = _progress
@@ -44,55 +50,131 @@ class GeckoSessionWrapper(
     private val _canGoForward = MutableStateFlow(false); val canGoForward: StateFlow<Boolean> get() = _canGoForward
     private val _isSecure     = MutableStateFlow(false); val isSecure: StateFlow<Boolean> get() = _isSecure
 
-    // ── LAZY session — only created on Main thread inside open() ─────────
+    // ── Lazy session — created only on Main thread inside open() ──────────
     @Volatile private var _session: GeckoSession? = null
 
-    /**
-     * Returns the session if already created, or null.
-     * Use [open] to create and open the session.
-     */
-    val session: GeckoSession?
-        get() = _session
+    /** The GeckoSession, or null if not yet opened. */
+    val session: GeckoSession? get() = _session
+
+    val isOpen: Boolean get() = _session?.isOpen == true
+
+    // Guard: prevents multiple concurrent open() calls
+    @Volatile private var _openInFlight = false
 
     /**
-     * Creates and opens the GeckoSession. MUST run on the Main thread.
-     * If called from a background thread, dispatches to Main automatically.
-     * Safe to call multiple times — only executes once.
+     * Opens the session. Must ultimately run on the Main thread.
+     * Safe to call from any thread — auto-dispatches to Main.
+     * Safe to call multiple times — only opens once.
      */
     fun open() {
+        // If already open, nothing to do
         if (_session?.isOpen == true) return
 
+        // Dispatch to Main thread if not already there
         if (Looper.myLooper() != Looper.getMainLooper()) {
             mainHandler.post { open() }
             return
         }
 
-        // We are on Main thread — safe to create GeckoSession
-        if (_session == null) {
-            _session = createSessionOnMain()
-        }
+        // We are on Main. Guard against double-open race.
+        if (_openInFlight) return
+        _openInFlight = true
 
-        val sess = _session ?: return
-        if (sess.isOpen) return
-
-        val ctx = appContext ?: run { Log.w(TAG, "open: null appContext"); return }
         try {
-            val rt = GeckoRuntimeManager.getOrInit(ctx)
-            if (rt == null) {
-                Log.w(TAG, "GeckoRuntime not ready — retry in 400ms")
-                mainHandler.postDelayed({ open() }, 400)
+            val ctx = appContext ?: run {
+                Log.w(TAG, "open() called with null appContext")
+                _openInFlight = false
                 return
             }
+
+            // Create session if it doesn't exist yet
+            if (_session == null) {
+                _session = createSessionOnMain()
+            }
+
+            val sess = _session ?: run {
+                _openInFlight = false
+                return
+            }
+
+            // If already open (race), done
+            if (sess.isOpen) {
+                _openInFlight = false
+                return
+            }
+
+            // Get or init GeckoRuntime
+            val rt = GeckoRuntimeManager.getOrInit(ctx)
+            if (rt == null) {
+                Log.w(TAG, "GeckoRuntime not ready — retry in 500ms")
+                _openInFlight = false
+                mainHandler.postDelayed({ open() }, 500)
+                return
+            }
+
             sess.open(rt)
             Log.d(TAG, "Session opened contextId=$contextId")
         } catch (e: Exception) {
             Log.e(TAG, "open() failed: ${e.message}", e)
+        } finally {
+            _openInFlight = false
+        }
+    }
+
+    fun close() {
+        try {
+            _session?.let { if (it.isOpen) it.close() }
+            Log.d(TAG, "Session closed")
+        } catch (e: Exception) {
+            Log.w(TAG, "close: ${e.message}")
         }
     }
 
     /**
-     * Creates the GeckoSession. Called only from [open] which is already on Main.
+     * Loads a URL. Always safe to call from any thread.
+     * If the session isn't open yet, opens it first then loads.
+     * loadUri() is posted to Main to ensure thread safety.
      */
+    fun loadUrl(url: String) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            // Dispatch entirely to Main
+            mainHandler.post { loadUrl(url) }
+            return
+        }
+        // We are on Main thread
+        if (_session?.isOpen != true) {
+            // Session not open yet — open first, then load
+            if (!_openInFlight) open()
+            // Schedule load after open completes (open() is synchronous on Main,
+            // so if open() succeeded the session is open now; if it needed to
+            // wait for GeckoRuntime, postDelayed will retry)
+            if (_session?.isOpen == true) {
+                safeLoad(url)
+            } else {
+                // GeckoRuntime wasn't ready; retry after a moment
+                mainHandler.postDelayed({ loadUrl(url) }, 600)
+            }
+        } else {
+            safeLoad(url)
+        }
+    }
+
+    private fun safeLoad(url: String) {
+        // Must be on Main thread
+        try {
+            _session?.loadUri(url)
+        } catch (e: Exception) {
+            Log.e(TAG, "loadUri($url): ${e.message}")
+        }
+    }
+
+    fun goBack()      { mainHandler.post { try { _session?.goBack() }    catch (e: Exception) { Log.w(TAG, "back: ${e.message}") } } }
+    fun goForward()   { mainHandler.post { try { _session?.goForward() } catch (e: Exception) { Log.w(TAG, "fwd: ${e.message}") } } }
+    fun reload()      { mainHandler.post { try { _session?.reload() }    catch (e: Exception) { Log.w(TAG, "reload: ${e.message}") } } }
+    fun stopLoading() { mainHandler.post { try { _session?.stop() }      catch (e: Exception) { Log.w(TAG, "stop: ${e.message}") } } }
+
+    // ── Session factory ───────────────────────────────────────────────────
+
     private fun createSessionOnMain(): GeckoSession {
         return try {
             val sb = GeckoSessionSettings.Builder()
@@ -109,51 +191,33 @@ class GeckoSessionWrapper(
             }
             s
         } catch (e: Exception) {
-            Log.e(TAG, "createSession failed: ${e.message}", e)
-            // Last-resort fallback — still on Main, bare session
+            Log.e(TAG, "createSessionOnMain fallback: ${e.message}", e)
             GeckoSession()
         }
     }
 
-    fun close() {
-        try {
-            if (_session?.isOpen == true) {
-                _session?.close()
-                Log.d(TAG, "Session closed")
-            }
-        } catch (e: Exception) { Log.w(TAG, "close: ${e.message}") }
-    }
-
-    val isOpen: Boolean get() = _session?.isOpen == true
-
-    fun loadUrl(url: String) {
-        if (_session?.isOpen != true) {
-            open()
-            mainHandler.postDelayed({ safeLoad(url) }, 500)
-        } else safeLoad(url)
-    }
-
-    private fun safeLoad(url: String) {
-        try { _session?.loadUri(url) } catch (e: Exception) { Log.e(TAG, "loadUri: ${e.message}") }
-    }
-
-    fun goBack()      { try { _session?.goBack() }    catch (e: Exception) { Log.w(TAG, "back: ${e.message}") } }
-    fun goForward()   { try { _session?.goForward() } catch (e: Exception) { Log.w(TAG, "fwd: ${e.message}") } }
-    fun reload()      { try { _session?.reload() }    catch (e: Exception) { Log.w(TAG, "reload: ${e.message}") } }
-    fun stopLoading() { try { _session?.stop() }      catch (e: Exception) { Log.w(TAG, "stop: ${e.message}") } }
+    // ── Delegates ─────────────────────────────────────────────────────────
 
     private fun buildNavDelegate() = object : NavigationDelegate {
-        override fun onLocationChange(session: GeckoSession, url: String?, perms: MutableList<PermissionDelegate.ContentPermission>, hasUserGesture: Boolean) { _url.value = url ?: "" }
+        override fun onLocationChange(session: GeckoSession, url: String?,
+            perms: MutableList<PermissionDelegate.ContentPermission>, hasUserGesture: Boolean) {
+            _url.value = url ?: ""
+        }
         override fun onCanGoBack(session: GeckoSession, canGoBack: Boolean) { _canGoBack.value = canGoBack }
         override fun onCanGoForward(session: GeckoSession, canGoForward: Boolean) { _canGoForward.value = canGoForward }
         override fun onNewSession(session: GeckoSession, uri: String): GeckoResult<GeckoSession>? {
-            try { session.loadUri(uri) } catch (e: Exception) { Log.w(TAG, "newSess: ${e.message}") }; return null
+            mainHandler.post { try { session.loadUri(uri) } catch (e: Exception) { Log.w(TAG, "newSess: ${e.message}") } }
+            return null
         }
     }
 
     private fun buildProgressDelegate() = object : ProgressDelegate {
-        override fun onPageStart(session: GeckoSession, url: String) { _loading.value = true; _progress.value = 0; _url.value = url }
-        override fun onPageStop(session: GeckoSession, success: Boolean) { _loading.value = false; _progress.value = 100 }
+        override fun onPageStart(session: GeckoSession, url: String) {
+            _loading.value = true; _progress.value = 0; _url.value = url
+        }
+        override fun onPageStop(session: GeckoSession, success: Boolean) {
+            _loading.value = false; _progress.value = 100
+        }
         override fun onProgressChange(session: GeckoSession, progress: Int) { _progress.value = progress }
         override fun onSecurityChange(session: GeckoSession, info: ProgressDelegate.SecurityInformation) {
             try { _isSecure.value = info.isSecure } catch (e: Exception) { Log.w(TAG, "sec: ${e.message}") }
@@ -171,7 +235,8 @@ class GeckoSessionWrapper(
                 val mime = response.headers["Content-Type"]?.split(";")?.first()?.trim()
                 val size = response.headers["Content-Length"]?.toLongOrNull() ?: -1L
                 val filename = response.headers["Content-Disposition"]?.let { cd ->
-                    Regex("""filename\*?=(?:UTF-8'')?["']?([^"';\s]+)""", RegexOption.IGNORE_CASE).find(cd)?.groupValues?.getOrNull(1)
+                    Regex("""filename\*?=(?:UTF-8'')?["']?([^"';\s]+)""", RegexOption.IGNORE_CASE)
+                        .find(cd)?.groupValues?.getOrNull(1)
                 } ?: url.substringAfterLast("/").substringBefore("?").takeIf { it.isNotBlank() } ?: "download"
                 if (appContext != null && downloadHandler != null) {
                     permissionHandler?.requestDownloadConfirmation(url, filename, mime, size)

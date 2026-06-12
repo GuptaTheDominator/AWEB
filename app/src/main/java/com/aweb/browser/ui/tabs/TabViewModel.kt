@@ -189,13 +189,22 @@ class TabViewModel @Inject constructor(
     private fun safeWireCallbacks(session: GeckoSessionWrapper, tab: TabEntity) {
         viewModelScope.launch {
             try {
-                session.url.combine(session.title) { u, t -> u to t }
-                    .distinctUntilChanged()
-                    .catch { e -> Log.w(TAG, "urlTitle: ${e.message}") }
-                    .collect { (url, title) ->
-                        if (url.isNotBlank()) {
-                            try { tabRepo.updateTitleAndUrl(tab.id, title.ifBlank { url }, url) }
-                            catch (e: Exception) { Log.w(TAG, "updateTitle: ${e.message}") }
+                // Only save title+url when page finishes loading (not on every URL change).
+                // Saving on every URL event causes heavy DB I/O that can freeze the main thread.
+                session.loading
+                    .catch { e -> Log.w(TAG, "loading flow: ${e.message}") }
+                    .collect { isLoading ->
+                        // Page just finished loading (loading went false)
+                        if (!isLoading) {
+                            val url   = session.url.value
+                            val title = session.title.value
+                            if (url.isNotBlank()) {
+                                try {
+                                    tabRepo.updateTitleAndUrl(tab.id, title.ifBlank { url }, url)
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "updateTitle: ${e.message}")
+                                }
+                            }
                         }
                     }
             } catch (e: Exception) { Log.w(TAG, "wireCallbacks: ${e.message}") }

@@ -1,8 +1,6 @@
 package com.aweb.browser.gecko
 
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import com.aweb.browser.data.entity.TabEntity
 import com.aweb.browser.data.entity.WorkspaceEntity
@@ -11,40 +9,42 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Maps tabId -> GeckoSessionWrapper.
+ * Maps tabId -> [GeckoSessionWrapper].
  *
- * CRITICAL: GeckoSession() constructor requires the Main thread.
- * [getOrCreate] checks the current thread and will throw if called from
- * a background thread — callers MUST ensure they dispatch to Main first.
- *
- * Callers:
- *  - TabViewModel.safeGetSession(): uses withContext(Dispatchers.Main) ✓
- *  - TabLifecycleManager: must also dispatch to Main (fixed in v1.0.8) ✓
- *  - KeepAliveManager: must also dispatch to Main (fixed in v1.0.8) ✓
+ * Thread safety: [GeckoSessionWrapper] constructor is safe on any thread.
+ * All GeckoSession operations (open, loadUri) are dispatched to Main
+ * internally by [GeckoSessionWrapper].
  */
 @Singleton
 class TabSessionManager @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
     companion object { private const val TAG = "TabSessionMgr" }
-    private val mainHandler = Handler(Looper.getMainLooper())
+
     private val sessions = mutableMapOf<String, GeckoSessionWrapper>()
 
     fun get(tabId: String): GeckoSessionWrapper? = sessions[tabId]
 
     /**
      * Gets or creates a [GeckoSessionWrapper] for a tab.
-     * The wrapper creation is safe on any thread (no GeckoSession yet).
-     * [GeckoSessionWrapper.open] handles Main-thread dispatching for session creation.
+     * Safe to call from any thread — all GeckoView operations are
+     * dispatched to Main internally by [GeckoSessionWrapper].
      */
     fun getOrCreate(tab: TabEntity, workspace: WorkspaceEntity): GeckoSessionWrapper {
         return sessions.getOrPut(tab.id) {
             Log.i(TAG, "Creating wrapper tab=${tab.id} ws=${workspace.name}")
-            val w = GeckoSessionWrapper(contextId = workspace.contextId, appContext = context)
-            // open() dispatches to Main internally
-            w.open()
+            val w = GeckoSessionWrapper(
+                contextId  = workspace.contextId,
+                appContext = context,
+            )
+            // loadUrl handles open() internally.
+            // If URL is blank, just open the session.
             val url = tab.url.takeIf { it.isNotBlank() && it != "about:blank" }
-            if (url != null) w.loadUrl(url)
+            if (url != null) {
+                w.loadUrl(url)   // open() + loadUri() in correct sequence on Main
+            } else {
+                w.open()         // just open, no URL
+            }
             w
         }
     }
