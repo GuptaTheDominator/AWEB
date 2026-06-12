@@ -42,6 +42,8 @@ class TabViewModel @Inject constructor(
     val uiState: StateFlow<TabUiState> = _uiState.asStateFlow()
     val keepAliveEvent = keepAliveManager.event
     private val _activeWorkspace = MutableStateFlow<WorkspaceEntity?>(null)
+    // Track the active wire-callbacks job so we can cancel it when the tab changes
+    private var wireCallbacksJob: kotlinx.coroutines.Job? = null
 
     val url          get() = _uiState.value.activeSession?.url
     val title        get() = _uiState.value.activeSession?.title
@@ -187,14 +189,15 @@ class TabViewModel @Inject constructor(
     fun stop()      { try { _uiState.value.activeSession?.stopLoading() } catch (_: Exception) {} }
 
     private fun safeWireCallbacks(session: GeckoSessionWrapper, tab: TabEntity) {
-        viewModelScope.launch {
+        // Cancel any previous wire-callbacks job to prevent accumulation
+        wireCallbacksJob?.cancel()
+        wireCallbacksJob = viewModelScope.launch {
             try {
                 // Only save title+url when page finishes loading (not on every URL change).
-                // Saving on every URL event causes heavy DB I/O that can freeze the main thread.
+                // Saving on every URL event causes heavy DB I/O that freezes the main thread.
                 session.loading
                     .catch { e -> Log.w(TAG, "loading flow: ${e.message}") }
                     .collect { isLoading ->
-                        // Page just finished loading (loading went false)
                         if (!isLoading) {
                             val url   = session.url.value
                             val title = session.title.value

@@ -160,7 +160,12 @@ class GeckoSessionWrapper(
     }
 
     private fun safeLoad(url: String) {
-        // Must be on Main thread
+        // Must be on Main thread — verify
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            Log.e(TAG, "safeLoad() called off Main! Dispatching to Main.")
+            mainHandler.post { safeLoad(url) }
+            return
+        }
         try {
             _session?.loadUri(url)
         } catch (e: Exception) {

@@ -12,19 +12,37 @@ class WorkspaceSessionManager @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
     companion object { private const val TAG = "WsSessionMgr" }
-    private val sessions = mutableMapOf<String, GeckoSessionWrapper>()
+    private val lock     = Any()
+    private val sessions = LinkedHashMap<String, GeckoSessionWrapper>()
 
-    fun getOrCreate(workspace: WorkspaceEntity): GeckoSessionWrapper {
-        return sessions.getOrPut(workspace.id) {
-            Log.i(TAG, "Creating wrapper ws=${workspace.name}")
-            GeckoSessionWrapper(contextId = workspace.contextId, appContext = context).also { it.open() }
+    fun getOrCreate(workspace: WorkspaceEntity): GeckoSessionWrapper =
+        synchronized(lock) {
+            sessions.getOrPut(workspace.id) {
+                Log.i(TAG, "Creating wrapper ws=${workspace.name}")
+                GeckoSessionWrapper(contextId = workspace.contextId, appContext = context)
+                    .also { it.open() }
+            }
         }
+
+    fun get(wsId: String): GeckoSessionWrapper? = synchronized(lock) { sessions[wsId] }
+
+    fun pauseAllExcept(activeId: String) {
+        synchronized(lock) { sessions.filter { it.key != activeId }.values.toList() }
+            .forEach { try { it.session?.setActive(false) } catch (_: Exception) {} }
     }
 
-    fun get(wsId: String): GeckoSessionWrapper? = sessions[wsId]
-    fun pauseAllExcept(activeId: String) { sessions.forEach { (id, w) -> if (id != activeId) try { w.session?.setActive(false) } catch (_: Exception) {} } }
-    fun resume(wsId: String) { try { sessions[wsId]?.session?.setActive(true) } catch (_: Exception) {} }
-    fun closeAndRemove(wsId: String) { sessions.remove(wsId)?.close() }
+    fun resume(wsId: String) {
+        try { synchronized(lock) { sessions[wsId] }?.session?.setActive(true) } catch (_: Exception) {}
+    }
+
+    fun closeAndRemove(wsId: String) {
+        synchronized(lock) { sessions.remove(wsId) }?.close()
+    }
+
     fun clearWorkspaceData(ws: WorkspaceEntity) { closeAndRemove(ws.id); getOrCreate(ws) }
-    fun closeAll() { sessions.values.forEach { try { it.close() } catch (_: Exception) {} }; sessions.clear() }
+
+    fun closeAll() {
+        val all = synchronized(lock) { sessions.values.toList().also { sessions.clear() } }
+        all.forEach { try { it.close() } catch (_: Exception) {} }
+    }
 }
