@@ -20,12 +20,6 @@ import org.mozilla.geckoview.GeckoSession.*
  *  2. GeckoSession.open() requires the Main thread.
  *  3. GeckoSession.loadUri() requires the Main thread.
  *  4. Only ONE open() call may be in-flight at any time.
- *
- * All three are guaranteed here via:
- *  - Lazy _session created inside open() which enforces Main.
- *  - @Volatile _openInFlight flag prevents double-open races.
- *  - loadUrl() always posts safeLoad to mainHandler (Main thread).
- *  - TabSessionManager.getOrCreate() posts the initial load via loadUrl().
  */
 class GeckoSessionWrapper(
     private val contextId: String? = null,
@@ -34,6 +28,8 @@ class GeckoSessionWrapper(
     private val fileUploadHandler: FileUploadHandler? = null,
     var onFullscreenChange: ((Boolean) -> Unit)? = null,
     private val appContext: Context? = null,
+    // Callback fired when a link-click requests a new tab (target=_blank etc.)
+    var onNewTabRequested: ((String) -> Unit)? = null,
 ) {
     companion object {
         private const val TAG = "GeckoSessionWrapper"
@@ -67,16 +63,13 @@ class GeckoSessionWrapper(
      * Safe to call multiple times — only opens once.
      */
     fun open() {
-        // If already open, nothing to do
         if (_session?.isOpen == true) return
 
-        // Dispatch to Main thread if not already there
         if (Looper.myLooper() != Looper.getMainLooper()) {
             mainHandler.post { open() }
             return
         }
 
-        // We are on Main. Guard against double-open race.
         if (_openInFlight) return
         _openInFlight = true
 
@@ -87,7 +80,6 @@ class GeckoSessionWrapper(
                 return
             }
 
-            // Create session if it doesn't exist yet
             if (_session == null) {
                 _session = createSessionOnMain()
             }
@@ -97,13 +89,11 @@ class GeckoSessionWrapper(
                 return
             }
 
-            // If already open (race), done
             if (sess.isOpen) {
                 _openInFlight = false
                 return
             }
 
-            // Get or init GeckoRuntime
             val rt = GeckoRuntimeManager.getOrInit(ctx)
             if (rt == null) {
                 Log.w(TAG, "GeckoRuntime not ready — retry in 500ms")
@@ -133,24 +123,17 @@ class GeckoSessionWrapper(
     /**
      * Loads a URL. Always safe to call from any thread.
      * If the session isn't open yet, opens it first then loads.
-     * loadUri() is posted to Main to ensure thread safety.
      */
     fun loadUrl(url: String) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
-            // Dispatch entirely to Main
             mainHandler.post { loadUrl(url) }
             return
         }
-        // We are on Main thread
         if (_session?.isOpen != true) {
-            // Session not open yet — open first (open() is synchronous on Main when
-            // GeckoRuntime is ready; if not ready it posts a 500ms retry internally).
             open()
             if (_session?.isOpen == true) {
                 safeLoad(url)
             } else {
-                // GeckoRuntime wasn't ready yet (open() posted a 500ms retry).
-                // Schedule our load attempt slightly after that retry fires.
                 mainHandler.postDelayed({ loadUrl(url) }, 600)
             }
         } else {
@@ -159,7 +142,6 @@ class GeckoSessionWrapper(
     }
 
     private fun safeLoad(url: String) {
-        // Must be on Main thread — verify
         if (Looper.myLooper() != Looper.getMainLooper()) {
             Log.e(TAG, "safeLoad() called off Main! Dispatching to Main.")
             mainHandler.post { safeLoad(url) }
@@ -203,22 +185,40 @@ class GeckoSessionWrapper(
     // ── Delegates ─────────────────────────────────────────────────────────
 
     private fun buildNavDelegate() = object : NavigationDelegate {
-        override fun onLocationChange(session: GeckoSession, url: String?,
-            perms: MutableList<PermissionDelegate.ContentPermission>, hasUserGesture: Boolean) {
+        override fun onLocationChange(
+            session: GeckoSession,
+            url: String?,
+            perms: MutableList<PermissionDelegate.ContentPermission>,
+            hasUserGesture: Boolean,
+        ) {
             _url.value = url ?: ""
         }
-        override fun onCanGoBack(session: GeckoSession, canGoBack: Boolean) { _canGoBack.value = canGoBack }
-        override fun onCanGoForward(session: GeckoSession, canGoForward: Boolean) { _canGoForward.value = canGoForward }
+
+        override fun onCanGoBack(session: GeckoSession, canGoBack: Boolean) {
+            _canGoBack.value = canGoBack
+        }
+
+        override fun onCanGoForward(session: GeckoSession, canGoForward: Boolean) {
+            _canGoForward.value = canGoForward
+        }
+
+        /**
+         * FIX (Bug 1): Links with target=_blank / window.open() fire onNewSession.
+         * Previously returned null (blocked silently) — the link simply did nothing.
+         *
+         * Correct fix: notify the app so it can open a new tab with that URI,
+         * then return null (we manage sessions ourselves, not GeckoView).
+         */
         override fun onNewSession(session: GeckoSession, uri: String): GeckoResult<GeckoSession>? {
-            // Returning null tells GeckoView to block the popup / new-window request.
-            // Previously this loaded the URI on the *parent* session (the one that already
-            // exists), which caused the current page to navigate away unexpectedly.
-            // The correct approach is either:
-            //  (a) return a new GeckoSession for a proper popup — complex, not supported yet.
-            //  (b) return null to block — safe default. Sites that need new windows will
-            //      open them inside the same tab via normal navigation.
-            Log.d(TAG, "onNewSession blocked popup: $uri")
-            return null
+            Log.d(TAG, "onNewSession → opening new tab for: $uri")
+            mainHandler.post {
+                try {
+                    onNewTabRequested?.invoke(uri)
+                } catch (e: Exception) {
+                    Log.w(TAG, "onNewTabRequested callback failed: ${e.message}")
+                }
+            }
+            return null  // we create the new session ourselves via onNewTabRequested
         }
     }
 
@@ -229,20 +229,26 @@ class GeckoSessionWrapper(
         override fun onPageStop(session: GeckoSession, success: Boolean) {
             _loading.value = false; _progress.value = 100
         }
-        override fun onProgressChange(session: GeckoSession, progress: Int) { _progress.value = progress }
+        override fun onProgressChange(session: GeckoSession, progress: Int) {
+            _progress.value = progress
+        }
         override fun onSecurityChange(session: GeckoSession, info: ProgressDelegate.SecurityInformation) {
             try { _isSecure.value = info.isSecure } catch (e: Exception) { Log.w(TAG, "sec: ${e.message}") }
         }
     }
 
     private fun buildContentDelegate() = object : ContentDelegate {
-        override fun onTitleChange(session: GeckoSession, title: String?) { _title.value = title ?: _url.value }
+        override fun onTitleChange(session: GeckoSession, title: String?) {
+            _title.value = title?.takeIf { it.isNotBlank() } ?: _url.value
+        }
+
         override fun onFullScreen(session: GeckoSession, fullScreen: Boolean) {
             try { onFullscreenChange?.invoke(fullScreen) } catch (e: Exception) { Log.w(TAG, "fs: ${e.message}") }
         }
+
         override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
             try {
-                val url = response.uri ?: return
+                val url  = response.uri ?: return
                 val mime = response.headers["Content-Type"]?.split(";")?.first()?.trim()
                 val size = response.headers["Content-Length"]?.toLongOrNull() ?: -1L
                 val filename = response.headers["Content-Disposition"]?.let { cd ->
@@ -255,6 +261,7 @@ class GeckoSessionWrapper(
                 }
             } catch (e: Exception) { Log.e(TAG, "extResp: ${e.message}") }
         }
+
         override fun onCloseRequest(session: GeckoSession) {}
     }
 }

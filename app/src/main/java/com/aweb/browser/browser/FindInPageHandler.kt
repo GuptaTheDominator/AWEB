@@ -1,5 +1,6 @@
 package com.aweb.browser.browser
 
+import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +16,8 @@ import javax.inject.Singleton
 @Singleton
 class FindInPageHandler @Inject constructor() {
 
+    companion object { private const val TAG = "FindInPageHandler" }
+
     data class FindResult(
         val current: Int     = 0,
         val total  : Int     = 0,
@@ -27,7 +30,7 @@ class FindInPageHandler @Inject constructor() {
     private val _result = MutableStateFlow(FindResult())
     val result: StateFlow<FindResult> = _result.asStateFlow()
 
-    private var currentSession: GeckoSession? = null
+    @Volatile private var currentSession: GeckoSession? = null
 
     fun attachSession(session: GeckoSession) { currentSession = session }
 
@@ -38,23 +41,38 @@ class FindInPageHandler @Inject constructor() {
         clear()
     }
 
+    /**
+     * FIX (Bug 6): The previous .then { } block returned GeckoResult.fromValue<Void>(null)
+     * which is incompatible with the GeckoResult<GeckoSession.FinderResult> chain in
+     * GeckoView 132 and caused a ClassCastException at runtime.
+     *
+     * Correct pattern: use .then { result -> GeckoResult.fromValue(result) } only if
+     * chaining is needed, or just use .accept { } (fire-and-forget) which is the right
+     * API for updating UI state from a GeckoResult without returning another result.
+     */
     fun find(query: String, forward: Boolean = true) {
         if (query.isBlank()) { clear(); return }
+        val sess = currentSession ?: return
         val flags = if (forward) 0 else GeckoSession.FINDER_FIND_BACKWARDS
-        currentSession?.finder?.find(query, flags)?.then { finderResult ->
-            if (finderResult != null) {
-                _result.value = FindResult(
-                    current = finderResult.current,
-                    total   = finderResult.total,
-                    found   = finderResult.found,
-                )
+        try {
+            sess.finder.find(query, flags)?.accept { finderResult ->
+                if (finderResult != null) {
+                    _result.value = FindResult(
+                        current = finderResult.current,
+                        total   = finderResult.total,
+                        found   = finderResult.found,
+                    )
+                } else {
+                    _result.value = FindResult(found = false)
+                }
             }
-            GeckoResult.fromValue<Void>(null)
+        } catch (e: Exception) {
+            Log.w(TAG, "find($query): ${e.message}")
         }
     }
 
     fun clear() {
-        currentSession?.finder?.clear()
+        try { currentSession?.finder?.clear() } catch (_: Exception) {}
         _result.value = FindResult()
     }
 }

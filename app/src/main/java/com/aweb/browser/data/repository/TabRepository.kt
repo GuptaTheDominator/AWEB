@@ -120,12 +120,17 @@ class TabRepository @Inject constructor(
 
     /**
      * Ensures at least one tab exists in a workspace.
-     * Called when the last tab is closed — opens a fresh homepage tab.
+     * FIX (Bug 12): New blank tab uses "about:newtab" so GeckoSessionWrapper
+     * treats it as a blank session (no URL to navigate to), avoiding an unwanted
+     * automatic DuckDuckGo navigation on every new-tab open.
      */
-    suspend fun ensureAtLeastOneTab(workspaceId: String, homepage: String): TabEntity {
+    suspend fun ensureAtLeastOneTab(
+        workspaceId: String,
+        homepage: String = "about:newtab",
+    ): TabEntity {
         val tabs = dao.getByWorkspace(workspaceId)
         if (tabs.isNotEmpty()) return tabs.first()
-        val tab = createTab(workspaceId = workspaceId, url = homepage)
+        val tab = createTab(workspaceId = workspaceId, url = homepage, title = "New Tab")
         setActiveTab(workspaceId, tab.id)
         return tab
     }

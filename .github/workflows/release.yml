@@ -81,14 +81,14 @@ jobs:
           APK_SRC=$(find app/build/outputs/apk/release/ -name "*.apk" | head -1)
           echo "Found APK: $APK_SRC ($(du -sh $APK_SRC | cut -f1))"
 
-          APK_DST="app/build/outputs/apk/release/AWEB-V2.4-arm64.apk"
+          APK_DST="app/build/outputs/apk/release/AWEB-V2.5-arm64.apk"
           mv "$APK_SRC" "$APK_DST"
           sha256sum "$APK_DST" > "${APK_DST}.sha256"
           cat "${APK_DST}.sha256"
 
           echo "APK_PATH=${APK_DST}" >> $GITHUB_ENV
           echo "SHA_PATH=${APK_DST}.sha256" >> $GITHUB_ENV
-          echo "RELEASE_TAG=V2.4" >> $GITHUB_ENV
+          echo "RELEASE_TAG=V2.5" >> $GITHUB_ENV
           echo "APK_SIZE=$(du -sh $APK_DST | cut -f1)" >> $GITHUB_ENV
 
       - name: Upload APK artifact

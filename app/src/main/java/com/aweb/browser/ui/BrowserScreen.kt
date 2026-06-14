@@ -100,10 +100,13 @@ fun BrowserScreen(
         catch (e: Exception) { android.util.Log.w("BrowserScreen", "checkBookmark: ${e.message}") }
     }
 
-    // Attach session to FindInPageHandler
+    // Attach session to FindInPageHandler + sync UA mode per tab (Bug 5 fix)
     LaunchedEffect(session) {
         try { session?.session?.let { featureViewModel.attachFindSession(it) } }
         catch (e: Exception) { android.util.Log.w("BrowserScreen", "attachFindSession: ${e.message}") }
+        // FIX (Bug 5): sync UA mode label when switching tabs
+        try { featureViewModel.syncUaModeForSession(session?.session) }
+        catch (e: Exception) { android.util.Log.w("BrowserScreen", "syncUaMode: ${e.message}") }
     }
 
     // Fullscreen callback from GeckoView
@@ -242,12 +245,25 @@ fun BrowserScreen(
             // ── Web content ───────────────────────────────────────────────
             Box(Modifier.fillMaxSize()) {
                 if (session != null) {
-                    // Only show GeckoView when session is ready
+                    /*
+                     * FIX (Bug 3): session.session (the inner GeckoSession) is null
+                     * until open() completes on the Main thread. Instead of showing a
+                     * blank black box, we show a progress spinner — then when the session
+                     * object becomes non-null Compose will recompose and show GeckoView.
+                     *
+                     * GeckoSessionWrapper._session is @Volatile so reads are always fresh.
+                     * Compose reads session.session here on every recompose, which is
+                     * triggered naturally by state changes (loading, url, etc.).
+                     */
                     val geckoSession = session.session
                     if (geckoSession != null) {
                         GeckoViewComposable(session = geckoSession, modifier = Modifier.fillMaxSize())
                     } else {
-                        Box(Modifier.fillMaxSize().background(Color(0xFF0F0F0F)))
+                        // Session opened but GeckoSession object not yet created — spin briefly
+                        Box(Modifier.fillMaxSize().background(Color(0xFF0F0F0F)),
+                            contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = Color(0xFF9C6FFF), modifier = Modifier.size(32.dp))
+                        }
                     }
                 } else {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -396,8 +412,22 @@ fun BrowserToolbar(
     onToggleOverflow: () -> Unit,
     onDismissOverflow: () -> Unit,
 ) {
-    var urlFieldValue by remember(displayUrl) { mutableStateOf(TextFieldValue(displayUrl)) }
+    /*
+     * FIX (Bug 9): Using remember(displayUrl) reset urlFieldValue on every URL change
+     * (e.g. on page navigation), wiping what the user was typing mid-edit.
+     *
+     * Fix: decouple the edit buffer from displayUrl.
+     * - urlFieldValue only changes when user types (onValueChange).
+     * - When the user is NOT editing, the TextField shows displayUrl directly.
+     * - When the user focuses the field, we seed urlFieldValue from displayUrl ONCE
+     *   (via onFocusChanged), giving them the current URL to edit from.
+     */
+    var urlFieldValue by remember { mutableStateOf(TextFieldValue(displayUrl)) }
     var isEditing     by remember { mutableStateOf(false) }
+    // Keep urlFieldValue in sync with page navigations when NOT editing
+    LaunchedEffect(displayUrl) {
+        if (!isEditing) urlFieldValue = TextFieldValue(displayUrl)
+    }
     val focusReq       = remember { FocusRequester() }
     val focusManager   = LocalFocusManager.current
     val wsColor        = parseWsColor(workspaceColor)
@@ -480,7 +510,16 @@ fun BrowserToolbar(
                 modifier  = Modifier
                     .weight(1f).padding(end = 4.dp)
                     .focusRequester(focusReq)
-                    .onFocusChanged { s -> isEditing = s.isFocused; if (s.isFocused) urlFieldValue = TextFieldValue(displayUrl) },
+                    .onFocusChanged { s ->
+                        if (s.isFocused && !isEditing) {
+                            // Seed edit buffer with current URL when user taps the bar
+                            urlFieldValue = TextFieldValue(
+                                text = displayUrl,
+                                selection = androidx.compose.ui.text.TextRange(0, displayUrl.length),
+                            )
+                        }
+                        isEditing = s.isFocused
+                    },
             )
 
             // Bookmark star

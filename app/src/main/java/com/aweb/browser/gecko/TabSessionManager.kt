@@ -31,7 +31,8 @@ class TabSessionManager @Inject constructor(
         }
         Log.i(TAG, "Creating wrapper tab=${tab.id} ws=${workspace.name}")
         val w = GeckoSessionWrapper(contextId = workspace.contextId, appContext = context)
-        val url = tab.url.takeIf { it.isNotBlank() && it != "about:blank" }
+        // FIX (Bug 12): treat about:* and blank urls as "open empty session"
+        val url = tab.url.takeIf { it.isNotBlank() && !it.startsWith("about:") }
         if (url != null) w.loadUrl(url) else w.open()
         synchronized(lock) {
             // Double-check: another thread may have created it while we were building

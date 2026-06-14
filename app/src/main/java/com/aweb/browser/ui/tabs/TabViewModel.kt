@@ -42,7 +42,6 @@ class TabViewModel @Inject constructor(
     val uiState: StateFlow<TabUiState> = _uiState.asStateFlow()
     val keepAliveEvent = keepAliveManager.event
     private val _activeWorkspace = MutableStateFlow<WorkspaceEntity?>(null)
-    // Track the active wire-callbacks job so we can cancel it when the tab changes
     private var wireCallbacksJob: kotlinx.coroutines.Job? = null
 
     val url          get() = _uiState.value.activeSession?.url
@@ -62,7 +61,10 @@ class TabViewModel @Inject constructor(
                         .catch { e -> Log.e(TAG, "tabObs: ${e.message}", e); emit(emptyList()) }
                         .map { tabs -> ws to tabs }
                 }
-                .catch { e -> Log.e(TAG, "outerFlow: ${e.message}", e); _uiState.update { it.copy(isError = true) } }
+                .catch { e ->
+                    Log.e(TAG, "outerFlow: ${e.message}", e)
+                    _uiState.update { it.copy(isError = true) }
+                }
                 .collect { (ws, rawTabs) -> safeCollect(ws, rawTabs) }
         }
     }
@@ -77,7 +79,7 @@ class TabViewModel @Inject constructor(
                 } catch (e: Exception) { Log.e(TAG, "seedTab: ${e.message}", e); rawTabs }
             } else rawTabs
 
-            val prev = _uiState.value.activeTab
+            val prev   = _uiState.value.activeTab
             val active = tabs.firstOrNull { it.isActive } ?: tabs.firstOrNull() ?: return
 
             if (prev == null || prev.workspaceId != active.workspaceId) {
@@ -89,15 +91,27 @@ class TabViewModel @Inject constructor(
             if (session != null) safeWireCallbacks(session, active)
             AppState.update(ws, tabs)
             _uiState.update { it.copy(tabs = tabs, activeTab = active, activeSession = session, isError = false) }
-        } catch (e: Exception) { Log.e(TAG, "safeCollect: ${e.message}", e) }
+        } catch (e: Exception) {
+            Log.e(TAG, "safeCollect: ${e.message}", e)
+        }
     }
 
-    private suspend fun safeGetSession(tab: TabEntity, workspace: WorkspaceEntity): GeckoSessionWrapper? {
+    private suspend fun safeGetSession(
+        tab: TabEntity,
+        workspace: WorkspaceEntity,
+    ): GeckoSessionWrapper? {
         repeat(8) { attempt ->
             try {
-                return withContext(Dispatchers.Main) {
+                val wrapper = withContext(Dispatchers.Main) {
                     sessionManager.getOrCreate(tab, workspace)
                 }
+                // FIX (Bug 1): Wire the new-tab callback so target=_blank links open a real tab
+                withContext(Dispatchers.Main) {
+                    wrapper.onNewTabRequested = { uri ->
+                        openNewTab(uri)
+                    }
+                }
+                return wrapper
             } catch (e: Exception) {
                 Log.w(TAG, "getOrCreate attempt ${attempt + 1}: ${e.message}")
                 delay(300L * (attempt + 1))
@@ -109,99 +123,175 @@ class TabViewModel @Inject constructor(
 
     fun setWorkspace(workspace: WorkspaceEntity) { _activeWorkspace.value = workspace }
 
-    fun openNewTab(url: String = "https://duckduckgo.com") {
+    // FIX (Bug 7 / Bug 12): openNewTab with URL=about:newtab so getOrCreate
+    // opens an empty session instead of navigating to duckduckgo immediately.
+    // The tab entity stores the *intended* url = "" and gets opened as blank.
+    fun openNewTab(url: String = "") {
         val ws = _activeWorkspace.value ?: return
         viewModelScope.launch {
-            try { val t = tabRepo.createTab(workspaceId = ws.id, url = url); tabRepo.setActiveTab(ws.id, t.id) }
-            catch (e: Exception) { Log.e(TAG, "openNewTab: ${e.message}") }
+            try {
+                val finalUrl = url.ifBlank { "about:newtab" }
+                val t = tabRepo.createTab(workspaceId = ws.id, url = finalUrl)
+                tabRepo.setActiveTab(ws.id, t.id)
+                // If a real URL was provided (e.g. from target=_blank), navigate to it
+                if (url.isNotBlank() && url != "about:newtab" && url != "about:blank") {
+                    // session will be created by safeCollect → safeGetSession → getOrCreate
+                    // getOrCreate already calls loadUrl(url) for non-blank urls
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "openNewTab: ${e.message}")
+            }
         }
     }
 
     fun selectTab(tab: TabEntity) {
-        val ws = _activeWorkspace.value ?: return
-        val prev = _uiState.value.activeTab; val all = _uiState.value.tabs
+        val ws  = _activeWorkspace.value ?: return
+        val prev = _uiState.value.activeTab
+        val all  = _uiState.value.tabs
         viewModelScope.launch {
             try {
                 tabRepo.setActiveTab(ws.id, tab.id)
-                try { lifecycleManager.onTabSelected(tab, prev, all, ws) } catch (e: Exception) { Log.w(TAG, "lcSel: ${e.message}") }
-            } catch (e: Exception) { Log.e(TAG, "selectTab: ${e.message}") }
+                try { lifecycleManager.onTabSelected(tab, prev, all, ws) }
+                catch (e: Exception) { Log.w(TAG, "lcSel: ${e.message}") }
+            } catch (e: Exception) {
+                Log.e(TAG, "selectTab: ${e.message}")
+            }
         }
     }
 
     fun closeTab(tab: TabEntity) {
-        val ws = _activeWorkspace.value ?: return; val all = _uiState.value.tabs
+        val ws  = _activeWorkspace.value ?: return
+        val all = _uiState.value.tabs
         viewModelScope.launch {
             try {
                 val wasActive = tab.id == _uiState.value.activeTab?.id
                 tabRepo.closeTab(tab.id)
-                try { lifecycleManager.onTabClosed(tab, all, ws) } catch (e: Exception) { Log.w(TAG, "lcClose: ${e.message}") }
+                try { lifecycleManager.onTabClosed(tab, all, ws) }
+                catch (e: Exception) { Log.w(TAG, "lcClose: ${e.message}") }
                 if (wasActive) {
                     val next = tabRepo.getTabsForWorkspace(ws.id).firstOrNull()
                     if (next != null) tabRepo.setActiveTab(ws.id, next.id)
-                    else tabRepo.ensureAtLeastOneTab(ws.id, "https://duckduckgo.com")
+                    else tabRepo.ensureAtLeastOneTab(ws.id)
                 }
-            } catch (e: Exception) { Log.e(TAG, "closeTab: ${e.message}") }
+            } catch (e: Exception) {
+                Log.e(TAG, "closeTab: ${e.message}")
+            }
         }
     }
 
     fun closeAllTabs() {
-        val ws = _activeWorkspace.value ?: return; val tabs = _uiState.value.tabs
+        val ws   = _activeWorkspace.value ?: return
+        val tabs = _uiState.value.tabs
         viewModelScope.launch {
             try {
                 tabs.forEach { try { lifecycleManager.onTabClosed(it, tabs, ws) } catch (_: Exception) {} }
                 tabRepo.closeAllTabsInWorkspace(ws.id)
-                tabRepo.ensureAtLeastOneTab(ws.id, "https://duckduckgo.com")
-            } catch (e: Exception) { Log.e(TAG, "closeAll: ${e.message}") }
+                tabRepo.ensureAtLeastOneTab(ws.id)
+            } catch (e: Exception) {
+                Log.e(TAG, "closeAll: ${e.message}")
+            }
         }
     }
 
     fun setPinned(tab: TabEntity, pinned: Boolean) {
-        viewModelScope.launch { try { tabRepo.setPinned(tab.id, pinned) } catch (e: Exception) { Log.e(TAG, "pin: ${e.message}") } }
+        viewModelScope.launch {
+            try { tabRepo.setPinned(tab.id, pinned) }
+            catch (e: Exception) { Log.e(TAG, "pin: ${e.message}") }
+        }
     }
 
     fun toggleKeepAlive(tab: TabEntity) {
         val ws = _activeWorkspace.value ?: return
-        try { keepAliveManager.toggle(tab, _uiState.value.tabs, ws) } catch (e: Exception) { Log.e(TAG, "ka: ${e.message}") }
+        try { keepAliveManager.toggle(tab, _uiState.value.tabs, ws) }
+        catch (e: Exception) { Log.e(TAG, "ka: ${e.message}") }
     }
 
     fun disableKeepAlive(tab: TabEntity) { if (tab.keepAlive) toggleKeepAlive(tab) }
     fun clearKeepAliveEvent() = keepAliveManager.clearEvent()
-    fun getKeepAliveTabs(): List<TabEntity> = try { keepAliveManager.getKeepAliveTabs(_uiState.value.tabs) } catch (_: Exception) { emptyList() }
+    fun getKeepAliveTabs(): List<TabEntity> =
+        try { keepAliveManager.getKeepAliveTabs(_uiState.value.tabs) } catch (_: Exception) { emptyList() }
 
     fun reorderTabs(orderedIds: List<String>) {
         val ws = _activeWorkspace.value ?: return
-        viewModelScope.launch { try { tabRepo.reorder(ws.id, orderedIds) } catch (e: Exception) { Log.e(TAG, "reorder: ${e.message}") } }
+        viewModelScope.launch {
+            try { tabRepo.reorder(ws.id, orderedIds) }
+            catch (e: Exception) { Log.e(TAG, "reorder: ${e.message}") }
+        }
     }
 
+    /**
+     * FIX (Bug 11): Improved URL/query detection.
+     *  - Bare words with dots but no TLD pattern → search (e.g. "e.g." "file.txt")
+     *  - Looks for at least one valid TLD-like segment (2+ alpha chars after the last dot)
+     *  - Excludes inputs with spaces anywhere in what looks like a domain
+     */
     fun loadUrl(input: String) {
-        val session = _uiState.value.activeSession ?: return
+        // FIX (Bug 4): Use the session from state; if null, try sessionManager directly
+        val session = _uiState.value.activeSession
+            ?: _activeWorkspace.value?.let { ws ->
+                _uiState.value.activeTab?.let { tab ->
+                    sessionManager.get(tab.id)
+                }
+            }
+            ?: return
+
+        val trimmed = input.trim()
         val url = when {
-            input.startsWith("http://") || input.startsWith("https://") -> input
-            input.contains(".") && !input.contains(" ") -> "https://$input"
-            else -> "https://duckduckgo.com/?q=${input.trim().replace(" ", "+")}"
+            trimmed.startsWith("http://") || trimmed.startsWith("https://") ||
+            trimmed.startsWith("about:") || trimmed.startsWith("file://") -> trimmed
+            looksLikeDomain(trimmed) -> "https://$trimmed"
+            else -> buildSearchUrl(trimmed)
         }
         try { session.loadUrl(url) } catch (e: Exception) { Log.e(TAG, "loadUrl: ${e.message}") }
     }
 
-    fun goBack()    { try { _uiState.value.activeSession?.goBack() }    catch (_: Exception) {} }
-    fun goForward() { try { _uiState.value.activeSession?.goForward() } catch (_: Exception) {} }
-    fun reload()    { try { _uiState.value.activeSession?.reload() }    catch (_: Exception) {} }
+    private fun looksLikeDomain(input: String): Boolean {
+        if (input.contains(" ")) return false
+        val parts = input.split(".")
+        if (parts.size < 2) return false
+        val tld = parts.last()
+        // TLD must be 2–6 alpha chars (e.g. com, org, uk, travel)
+        if (!tld.matches(Regex("[a-zA-Z]{2,6}"))) return false
+        // Domain must have at least one non-empty part before the TLD
+        val domain = parts.dropLast(1).lastOrNull() ?: return false
+        return domain.isNotEmpty()
+    }
+
+    private fun buildSearchUrl(query: String): String {
+        val encoded = query.trim().replace(" ", "+")
+        return "https://duckduckgo.com/?q=$encoded"
+    }
+
+    fun goBack()    { try { _uiState.value.activeSession?.goBack() }      catch (_: Exception) {} }
+    fun goForward() { try { _uiState.value.activeSession?.goForward() }   catch (_: Exception) {} }
+    fun reload()    { try { _uiState.value.activeSession?.reload() }      catch (_: Exception) {} }
     fun stop()      { try { _uiState.value.activeSession?.stopLoading() } catch (_: Exception) {} }
 
+    /**
+     * FIX (Bug 2): Only save to DB after a genuine page-load completion.
+     * Previously the flow fired immediately with isLoading=false on first subscription,
+     * causing blank URLs to overwrite the tab's real URL in Room.
+     *
+     * Fix: use distinctUntilChanged + only save when transitioning false AFTER
+     * at least one true (i.e. a real page load happened).
+     */
     private fun safeWireCallbacks(session: GeckoSessionWrapper, tab: TabEntity) {
-        // Cancel any previous wire-callbacks job to prevent accumulation
         wireCallbacksJob?.cancel()
         wireCallbacksJob = viewModelScope.launch {
             try {
-                // Only save title+url when page finishes loading (not on every URL change).
-                // Saving on every URL event causes heavy DB I/O that freezes the main thread.
+                var hasSeenLoading = false
+                // Note: distinctUntilChanged on StateFlow is a no-op (StateFlow already
+                // deduplicates); we track state manually with hasSeenLoading instead.
                 session.loading
                     .catch { e -> Log.w(TAG, "loading flow: ${e.message}") }
                     .collect { isLoading ->
-                        if (!isLoading) {
+                        if (isLoading) {
+                            hasSeenLoading = true
+                        } else if (hasSeenLoading) {
+                            // Page genuinely finished loading — save title + url
                             val url   = session.url.value
                             val title = session.title.value
-                            if (url.isNotBlank()) {
+                            if (url.isNotBlank() && !url.startsWith("about:")) {
                                 try {
                                     tabRepo.updateTitleAndUrl(tab.id, title.ifBlank { url }, url)
                                 } catch (e: Exception) {
@@ -210,7 +300,9 @@ class TabViewModel @Inject constructor(
                             }
                         }
                     }
-            } catch (e: Exception) { Log.w(TAG, "wireCallbacks: ${e.message}") }
+            } catch (e: Exception) {
+                Log.w(TAG, "wireCallbacks: ${e.message}")
+            }
         }
     }
 }
