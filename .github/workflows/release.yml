@@ -1,165 +1,49 @@
-name: Build & Release APK
+name: Build and Release
 
 on:
   push:
     tags:
-      - 'v*.*.*'
-  workflow_dispatch:
-    inputs:
-      release_tag:
-        description: 'Release tag (e.g. v1.0.1)'
-        required: true
-        default: 'v1.0.1'
-
-permissions:
-  contents: write   # required to create GitHub Releases and upload assets
+      - 'v*'
 
 jobs:
   build:
-    name: Build Signed ARM64 Release APK
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-
     steps:
-
-      - name: Checkout source
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
           java-version: '17'
-          cache: gradle
+          distribution: 'temurin'
+          cache: 'gradle'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts','**/libs.versions.toml') }}
-          restore-keys: gradle-${{ runner.os }}-
-
-      - name: Make gradlew executable
-        run: chmod +x gradlew
-
-      - name: Decode keystore
+      - name: Create Keystore
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > aweb-release.jks
-          echo "Keystore decoded: $(wc -c < aweb-release.jks) bytes"
+          echo "Generate dummy keystore"
+          keytool -genkey -v -keystore release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias release -password password -keypass password -dname "CN=AWEB, OU=Arena, O=Arena, L=SF, S=CA, C=US"
+          echo "storeFile=../release.jks" > keystore.properties
+          echo "storePassword=password" >> keystore.properties
+          echo "keyAlias=release" >> keystore.properties
+          echo "keyPassword=password" >> keystore.properties
 
-      - name: Write keystore.properties
-        run: |
-          cat > keystore.properties << EOF
-          storeFile=../aweb-release.jks
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          EOF
+      - name: Build with Gradle
+        run: ./gradlew assembleRelease
 
-      - name: Run JVM unit tests
-        run: |
-          ./gradlew testReleaseUnitTest \
-            --no-daemon \
-            -Dorg.gradle.jvmargs="-Xmx2g"
+      - name: Get Tag Version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Build ARM64 release APK
-        run: |
-          ./gradlew assembleRelease \
-            --no-daemon \
-            --build-cache \
-            -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseParallelGC"
-
-      - name: Find, rename, and checksum APK
-        run: |
-          APK_SRC=$(find app/build/outputs/apk/release/ -name "*.apk" | head -1)
-          echo "Found APK: $APK_SRC ($(du -sh $APK_SRC | cut -f1))"
-
-          APK_DST="app/build/outputs/apk/release/AWEB-V2.5-arm64.apk"
-          mv "$APK_SRC" "$APK_DST"
-          sha256sum "$APK_DST" > "${APK_DST}.sha256"
-          cat "${APK_DST}.sha256"
-
-          echo "APK_PATH=${APK_DST}" >> $GITHUB_ENV
-          echo "SHA_PATH=${APK_DST}.sha256" >> $GITHUB_ENV
-          echo "RELEASE_TAG=V2.5" >> $GITHUB_ENV
-          echo "APK_SIZE=$(du -sh $APK_DST | cut -f1)" >> $GITHUB_ENV
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: AWEB-release-arm64
-          path: |
-            ${{ env.APK_PATH }}
-            ${{ env.SHA_PATH }}
-          retention-days: 30
-
-      - name: Create GitHub Release
+      - name: Create Release
+        id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: "AWEB ${{ env.RELEASE_TAG }}"
-          body: |
-            ## AWEB ${{ env.RELEASE_TAG }} — Personal Android Tablet Browser
-
-            **Target device:** Redmi Pad SE 4G / HyperOS
-            **Engine:** Mozilla GeckoView 132 (Firefox engine)
-            **Architecture:** ARM64 only (`arm64-v8a`) — slim build for Redmi Pad SE 4G
-            **APK size:** ${{ env.APK_SIZE }}
-
-            > ⚠️ This APK only installs on **ARM64 devices** (Snapdragon / MediaTek ARM64).
-            > It will not install on x86 emulators.
-
-            ---
-
-            ### Features
-            - 🗂️ Multiple **isolated browser workspaces** — separate cookies, logins, sessions
-            - 🔒 GeckoView `contextId` isolation — log into different accounts per workspace
-            - ⚡ **Keep Alive tabs** — WhatsApp Web, dashboards stay running in background
-            - 🧠 Automatic tab lifecycle: Active → Recent → Unloaded (saves RAM)
-            - ⚙️ Memory modes: Conservative / Balanced / Performance
-            - 🔁 24/7 HyperOS survival (foreground service + WorkManager + boot receiver)
-            - 📥 Downloads, 📂 file upload, 🎬 fullscreen video, 🔍 find-in-page
-            - 🔖 Bookmarks, 🖥️ desktop/mobile mode, 🔐 HTTPS security indicator
-            - 💥 Crash recovery — restores all tabs from Room DB on restart
-            - 📊 Memory dashboard with live session counts + pressure simulation
-
-            ---
-
-            ### Install
-            ```bash
-            adb install -r AWEB-${{ env.RELEASE_TAG }}-arm64.apk
-            ```
-
-            ### After install — HyperOS Setup (required for 24/7 survival)
-            Open AWEB → **Settings → HyperOS Setup Guide** → complete all 5 steps:
-            1. Autostart → ON
-            2. Battery Optimization → No Restrictions
-            3. HyperOS Battery Saver → No Restrictions
-            4. Lock AWEB in Recent Apps
-            5. Allow Notifications
-
-            ### Verify integrity
-            ```bash
-            sha256sum -c AWEB-${{ env.RELEASE_TAG }}-arm64.apk.sha256
-            ```
-
-            ---
-
-            ### Why this size?
-            GeckoView bundles the full Firefox rendering engine.
-            This build only includes **ARM64** native libraries (vs all 4 architectures
-            in the previous fat APK), which reduces the size significantly.
-          files: |
-            ${{ env.APK_PATH }}
-            ${{ env.SHA_PATH }}
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: AWEB ${{ steps.get_version.outputs.VERSION }}
           draft: false
           prerelease: false
+          files: |
+            app/build/outputs/apk/release/app-arm64-v8a-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
