@@ -23,8 +23,8 @@ android {
         applicationId  = "com.aweb.browser"
         minSdk         = 29
         targetSdk      = 35
-        versionCode    = 25
-        versionName    = "2.5"
+        versionCode    = 26
+        versionName    = "2.5.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

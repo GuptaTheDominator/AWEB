@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -22,11 +24,14 @@ jobs:
       - name: Create Keystore
         run: |
           echo "Generate dummy keystore"
-          keytool -genkey -v -keystore release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias release -password password -keypass password -dname "CN=AWEB, OU=Arena, O=Arena, L=SF, S=CA, C=US"
+          keytool -genkey -v -keystore release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias release -storepass password -keypass password -dname "CN=AWEB, OU=Arena, O=Arena, L=SF, S=CA, C=US"
           echo "storeFile=../release.jks" > keystore.properties
           echo "storePassword=password" >> keystore.properties
           echo "keyAlias=release" >> keystore.properties
           echo "keyPassword=password" >> keystore.properties
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
       - name: Build with Gradle
         run: ./gradlew assembleRelease
