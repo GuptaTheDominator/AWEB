@@ -49,7 +49,7 @@ class ServiceHealthWorker @AssistedInject constructor(
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,   // do not replace an already-running schedule
+                ExistingPeriodicWorkPolicy.UPDATE,   // update the existing schedule
                 request,
             )
             Log.i(TAG, "Health worker scheduled")
