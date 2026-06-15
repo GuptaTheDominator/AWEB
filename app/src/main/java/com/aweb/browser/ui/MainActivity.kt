@@ -122,10 +122,18 @@ fun AwebRootLayout(
                     onOpenSettings   = { showSettings = true },
                 )
                 Box(Modifier.weight(1f).fillMaxHeight()) {
-                    BrowserScreen(
-                        tabViewModel    = tabViewModel,
-                        activeWorkspace = wsState.activeWorkspace,
-                    )
+                    AnimatedContent(
+                        targetState = wsState.activeWorkspace?.id,
+                        transitionSpec = {
+                            (fadeIn() + scaleIn(initialScale = 0.98f)).togetherWith(fadeOut())
+                        },
+                        label = "workspaceSwitch"
+                    ) { _ ->
+                        BrowserScreen(
+                            tabViewModel    = tabViewModel,
+                            activeWorkspace = wsState.activeWorkspace,
+                        )
+                    }
                 }
             }
 

@@ -75,6 +75,10 @@ class TabRepository @Inject constructor(
         dao.updateLifecycleState(tabId, state)
     }
 
+    suspend fun updateUserAgentMode(tabId: String, mode: String) {
+        dao.updateUserAgentMode(tabId, mode)
+    }
+
     suspend fun setKeepAlive(tabId: String, keepAlive: Boolean) {
         dao.setKeepAlive(tabId, keepAlive)
     }

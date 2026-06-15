@@ -59,6 +59,9 @@ data class TabEntity(
     @ColumnInfo(name = "last_accessed")
     val lastAccessed: Long,
 
+    @ColumnInfo(name = "user_agent_mode")
+    val userAgentMode: String = "mobile",   // "mobile" or "desktop"
+
     @ColumnInfo(name = "created_at")
     val createdAt: Long,
 

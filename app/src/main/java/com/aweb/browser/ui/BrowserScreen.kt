@@ -73,6 +73,7 @@ fun BrowserScreen(
 
     val tabState    by tabViewModel.uiState.collectAsState()
     val session     = tabState.activeSession
+    val activeTab   = tabState.activeTab
 
     val url         by (session?.url         ?: emptyStateFlow("")).collectAsState()
     val title       by (session?.title       ?: emptyStateFlow("New Tab")).collectAsState()
@@ -82,6 +83,7 @@ fun BrowserScreen(
     val canGoFwd    by (session?.canGoForward ?: emptyStateFlow(false)).collectAsState()
     val isSecure    by (session?.isSecure    ?: emptyStateFlow(false)).collectAsState()
 
+    val uaModeLabel = activeTab?.userAgentMode ?: "mobile"
     val wsColor     = activeWorkspace?.colorHex ?: "#9C6FFF"
 
     // ── Feature state ─────────────────────────────────────────────────────
@@ -89,7 +91,6 @@ fun BrowserScreen(
     val bookmarks     by featureViewModel.bookmarks.collectAsState()
     val findVisible   by featureViewModel.findVisible.collectAsState()
     val findResult    by featureViewModel.findResult.collectAsState()
-    val uaMode        by featureViewModel.uaMode.collectAsState()
     val isFullscreen  by featureViewModel.isFullscreen.collectAsState()
     val showBookmarks by featureViewModel.showBookmarks.collectAsState()
     val keepAliveCount = tabState.tabs.count { it.keepAlive }
@@ -100,13 +101,13 @@ fun BrowserScreen(
         catch (e: Exception) { android.util.Log.w("BrowserScreen", "checkBookmark: ${e.message}") }
     }
 
-    // Attach session to FindInPageHandler + sync UA mode per tab (Bug 5 fix)
+    // FIX (Bug 3): Observe the inner session Flow for FindInPage attachment
     LaunchedEffect(session) {
-        try { session?.session?.let { featureViewModel.attachFindSession(it) } }
-        catch (e: Exception) { android.util.Log.w("BrowserScreen", "attachFindSession: ${e.message}") }
-        // FIX (Bug 5): sync UA mode label when switching tabs
-        try { featureViewModel.syncUaModeForSession(session?.session) }
-        catch (e: Exception) { android.util.Log.w("BrowserScreen", "syncUaMode: ${e.message}") }
+        session?.sessionFlow?.collect { geckoSession ->
+            if (geckoSession != null) {
+                featureViewModel.attachFindSession(geckoSession)
+            }
+        }
     }
 
     // Fullscreen callback from GeckoView
@@ -200,7 +201,7 @@ fun BrowserScreen(
                     loading        = loading,
                     canGoBack      = canGoBack,
                     canGoForward   = canGoFwd,
-                    uaMode         = uaMode.name,
+                    uaMode         = uaModeLabel,
                     onNavigate     = { tabViewModel.loadUrl(it) },
                     onBack         = { tabViewModel.goBack() },
                     onForward      = { tabViewModel.goForward() },
@@ -210,7 +211,7 @@ fun BrowserScreen(
                     onShowKa       = { showKaPanel = true },
                     onBookmark     = { featureViewModel.toggleBookmark(url, title) },
                     onShowFind     = { featureViewModel.showFind() },
-                    onToggleUa     = { session?.session?.let { featureViewModel.toggleUaMode(it) } },
+                    onToggleUa     = { tabViewModel.toggleDesktopMode() },
                     onShowBookmarks = { featureViewModel.openBookmarks() },
                     showOverflowMenu = showOverflowMenu,
                     onToggleOverflow = { showOverflowMenu = !showOverflowMenu },
@@ -462,17 +463,17 @@ fun BrowserToolbar(
             }
 
             // Back / Fwd / Reload
-            IconButton(onClick = onBack, enabled = canGoBack, modifier = Modifier.size(40.dp)) {
+            IconButton(onClick = onBack, enabled = canGoBack, modifier = Modifier.size(44.dp)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back",
-                    tint = if (canGoBack) Color.White else Color(0xFF3A3A3A), modifier = Modifier.size(20.dp))
+                    tint = if (canGoBack) Color.White else Color(0xFF444444), modifier = Modifier.size(22.dp))
             }
-            IconButton(onClick = onForward, enabled = canGoForward, modifier = Modifier.size(40.dp)) {
+            IconButton(onClick = onForward, enabled = canGoForward, modifier = Modifier.size(44.dp)) {
                 Icon(Icons.Filled.ArrowForward, "Fwd",
-                    tint = if (canGoForward) Color.White else Color(0xFF3A3A3A), modifier = Modifier.size(20.dp))
+                    tint = if (canGoForward) Color.White else Color(0xFF444444), modifier = Modifier.size(22.dp))
             }
-            IconButton(onClick = if (loading) onStop else onReload, modifier = Modifier.size(40.dp)) {
+            IconButton(onClick = if (loading) onStop else onReload, modifier = Modifier.size(44.dp)) {
                 Icon(if (loading) Icons.Filled.Close else Icons.Filled.Refresh,
-                    if (loading) "Stop" else "Reload", tint = Color.White, modifier = Modifier.size(20.dp))
+                    if (loading) "Stop" else "Reload", tint = Color.White, modifier = Modifier.size(22.dp))
             }
 
             // URL bar with security icon
@@ -498,17 +499,17 @@ fun BrowserToolbar(
                 }),
                 shape  = RoundedCornerShape(24.dp),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor   = Color(0xFF2A2A2A),
-                    unfocusedContainerColor = Color(0xFF202020),
+                    focusedContainerColor   = Color(0xFF2D2D2D),
+                    unfocusedContainerColor = Color(0xFF242424),
                     focusedTextColor        = Color.White,
-                    unfocusedTextColor      = Color(0xFFCCCCCC),
+                    unfocusedTextColor      = Color(0xFFBBBBBB),
                     focusedIndicatorColor   = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
                     cursorColor             = wsColor,
                 ),
-                textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
+                textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
                 modifier  = Modifier
-                    .weight(1f).padding(end = 4.dp)
+                    .weight(1f).padding(end = 8.dp, vertical = 6.dp)
                     .focusRequester(focusReq)
                     .onFocusChanged { s ->
                         if (s.isFocused && !isEditing) {

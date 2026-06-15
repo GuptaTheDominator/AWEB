@@ -177,33 +177,54 @@ private fun WorkspaceItem(
         Color(android.graphics.Color.parseColor(workspace.colorHex ?: "#9C6FFF"))
     }.getOrDefault(Color(0xFF9C6FFF))
 
-    Box {
+    val targetBackground = if (isActive) Color(0xFF2D2D2D) else Color.Transparent
+    val targetTextColor  = if (isActive) Color.White else Color(0xFF888888)
+    val animatedBackground by animateColorAsState(targetBackground, label = "bg")
+    val animatedTextColor  by animateColorAsState(targetTextColor, label = "text")
+
+    Box(modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    if (isActive) Color(0xFF252525) else Color.Transparent,
-                    RoundedCornerShape(8.dp),
-                )
+                .clip(RoundedCornerShape(12.dp))
+                .background(animatedBackground)
                 .combinedClickable(
                     onClick      = onSwitch,
                     onLongClick  = { showMenu = true },
                 )
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 12.dp),
         ) {
-            // Colour dot / active indicator
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(wsColor),
-            )
-            Spacer(Modifier.width(10.dp))
+            // Animated active pill
+            AnimatedVisibility(
+                visible = isActive,
+                enter = expandHorizontally() + fadeIn(),
+                exit = shrinkHorizontally() + fadeOut()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(end = 12.dp)
+                        .width(4.dp)
+                        .height(20.dp)
+                        .clip(CircleShape)
+                        .background(wsColor),
+                )
+            }
+
+            // Workspace color dot
+            if (!isActive) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(wsColor.copy(alpha = 0.6f)),
+                )
+                Spacer(Modifier.width(12.dp))
+            }
 
             Text(
                 text       = workspace.name,
-                color      = if (isActive) Color.White else Color(0xFFAAAAAA),
+                color      = animatedTextColor,
                 fontSize   = 14.sp,
                 fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines   = 1,

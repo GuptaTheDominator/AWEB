@@ -78,27 +78,9 @@ class BrowserFeatureViewModel @Inject constructor(
         findHandler.attachSession(session)
 
     // ── UA mode ───────────────────────────────────────────────────────────
-    /*
-     * FIX (Bug 5): _uaMode was a single shared flow for ALL tabs.
-     * Switching to desktop mode on tab A would show "Desktop" in the toolbar
-     * even when tab B (mobile mode) was active.
-     *
-     * Fix: expose a function that reads the per-session mode from UserAgentManager
-     * using the session's identity. The toolbar calls getModeForSession() to get
-     * the correct label for the currently active session.
-     */
-
-    private val _uaMode = MutableStateFlow(UserAgentManager.UaMode.MOBILE)
-    val uaMode: StateFlow<UserAgentManager.UaMode> = _uaMode.asStateFlow()
 
     fun syncUaModeForSession(session: org.mozilla.geckoview.GeckoSession?) {
-        _uaMode.value = if (session != null)
-            uaManager.getMode(session.hashCode().toString())
-        else UserAgentManager.UaMode.MOBILE
-    }
-
-    fun toggleUaMode(session: org.mozilla.geckoview.GeckoSession) {
-        _uaMode.value = uaManager.toggle(session)
+        // No-op, managed by TabViewModel + Room now
     }
 
     // ── Fullscreen ────────────────────────────────────────────────────────

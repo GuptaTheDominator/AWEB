@@ -19,6 +19,7 @@ object AppState {
     data class Snapshot(
         val workspace: WorkspaceEntity?,
         val tabs     : List<TabEntity>,
+        val searchEngine: com.aweb.browser.data.repository.SearchEngine? = null,
     )
 
     private val _snapshot = java.util.concurrent.atomic.AtomicReference(
@@ -27,8 +28,9 @@ object AppState {
 
     val currentWorkspace: WorkspaceEntity? get() = _snapshot.get().workspace
     val currentTabs     : List<TabEntity>  get() = _snapshot.get().tabs
+    val currentSearchEngine: com.aweb.browser.data.repository.SearchEngine? get() = _snapshot.get().searchEngine
 
-    fun update(workspace: WorkspaceEntity?, tabs: List<TabEntity>) {
-        _snapshot.set(Snapshot(workspace = workspace, tabs = tabs))
+    fun update(workspace: WorkspaceEntity?, tabs: List<TabEntity>, engine: com.aweb.browser.data.repository.SearchEngine? = null) {
+        _snapshot.set(Snapshot(workspace = workspace, tabs = tabs, searchEngine = engine))
     }
 }

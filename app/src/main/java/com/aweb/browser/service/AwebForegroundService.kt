@@ -112,11 +112,20 @@ class AwebForegroundService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
+        val stopIntent = PendingIntent.getService(
+            this, 1,
+            Intent(this, AwebForegroundService::class.java).apply {
+                action = ACTION_STOP_SERVICE
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+
         return NotificationCompat.Builder(this, getString(R.string.notification_channel_id))
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentTitle(getString(R.string.notification_title))
             .setContentText(text)
             .setContentIntent(openIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Exit", stopIntent)
             .setOngoing(true)
             .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

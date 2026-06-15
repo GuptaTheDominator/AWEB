@@ -63,4 +63,7 @@ interface TabDao {
 
     @Query("UPDATE tabs SET title = :title, url = :url, updated_at = :now WHERE id = :tabId")
     suspend fun updateTitleAndUrl(tabId: String, title: String, url: String, now: Long = System.currentTimeMillis())
+
+    @Query("UPDATE tabs SET user_agent_mode = :mode, updated_at = :now WHERE id = :tabId")
+    suspend fun updateUserAgentMode(tabId: String, mode: String, now: Long = System.currentTimeMillis())
 }

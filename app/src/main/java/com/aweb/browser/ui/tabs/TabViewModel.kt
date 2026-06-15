@@ -33,6 +33,7 @@ data class TabUiState(
 @HiltViewModel
 class TabViewModel @Inject constructor(
     private val tabRepo: TabRepository,
+    private val settingsRepo: com.aweb.browser.data.repository.SettingsRepository,
     private val sessionManager: TabSessionManager,
     private val lifecycleManager: TabLifecycleManager,
     private val keepAliveManager: KeepAliveManager,
@@ -58,6 +59,7 @@ class TabViewModel @Inject constructor(
             _activeWorkspace.filterNotNull()
                 .flatMapLatest { ws ->
                     tabRepo.observeTabsForWorkspace(ws.id)
+                        .distinctUntilChanged()
                         .catch { e -> Log.e(TAG, "tabObs: ${e.message}", e); emit(emptyList()) }
                         .map { tabs -> ws to tabs }
                 }
@@ -89,7 +91,10 @@ class TabViewModel @Inject constructor(
 
             val session = safeGetSession(active, ws)
             if (session != null) safeWireCallbacks(session, active)
-            AppState.update(ws, tabs)
+            
+            val engine = settingsRepo.defaultSearchEngine.first()
+            AppState.update(ws, tabs, engine)
+            
             _uiState.update { it.copy(tabs = tabs, activeTab = active, activeSession = session, isError = false) }
         } catch (e: Exception) {
             Log.e(TAG, "safeCollect: ${e.message}", e)
@@ -226,7 +231,6 @@ class TabViewModel @Inject constructor(
      *  - Excludes inputs with spaces anywhere in what looks like a domain
      */
     fun loadUrl(input: String) {
-        // FIX (Bug 4): Use the session from state; if null, try sessionManager directly
         val session = _uiState.value.activeSession
             ?: _activeWorkspace.value?.let { ws ->
                 _uiState.value.activeTab?.let { tab ->
@@ -240,32 +244,37 @@ class TabViewModel @Inject constructor(
             trimmed.startsWith("http://") || trimmed.startsWith("https://") ||
             trimmed.startsWith("about:") || trimmed.startsWith("file://") -> trimmed
             looksLikeDomain(trimmed) -> "https://$trimmed"
-            else -> buildSearchUrl(trimmed)
+            else -> {
+                // Use user-selected search engine
+                val engine = com.aweb.browser.AppState.currentSearchEngine ?: com.aweb.browser.data.repository.SearchEngine.DUCKDUCKGO
+                engine.buildSearchUrl(trimmed)
+            }
         }
         try { session.loadUrl(url) } catch (e: Exception) { Log.e(TAG, "loadUrl: ${e.message}") }
-    }
-
-    private fun looksLikeDomain(input: String): Boolean {
-        if (input.contains(" ")) return false
-        val parts = input.split(".")
-        if (parts.size < 2) return false
-        val tld = parts.last()
-        // TLD must be 2–6 alpha chars (e.g. com, org, uk, travel)
-        if (!tld.matches(Regex("[a-zA-Z]{2,6}"))) return false
-        // Domain must have at least one non-empty part before the TLD
-        val domain = parts.dropLast(1).lastOrNull() ?: return false
-        return domain.isNotEmpty()
-    }
-
-    private fun buildSearchUrl(query: String): String {
-        val encoded = query.trim().replace(" ", "+")
-        return "https://duckduckgo.com/?q=$encoded"
     }
 
     fun goBack()    { try { _uiState.value.activeSession?.goBack() }      catch (_: Exception) {} }
     fun goForward() { try { _uiState.value.activeSession?.goForward() }   catch (_: Exception) {} }
     fun reload()    { try { _uiState.value.activeSession?.reload() }      catch (_: Exception) {} }
     fun stop()      { try { _uiState.value.activeSession?.stopLoading() } catch (_: Exception) {} }
+
+    fun toggleDesktopMode() {
+        val tab = _uiState.value.activeTab ?: return
+        val current = tab.userAgentMode
+        val next = if (current == "desktop") "mobile" else "desktop"
+        viewModelScope.launch {
+            tabRepo.updateUserAgentMode(tab.id, next)
+            // Reload the session with new settings
+            _uiState.value.activeSession?.let { wrapper ->
+                wrapper.session?.let { sess ->
+                    sess.settings.userAgentMode = if (next == "desktop") 
+                        org.mozilla.geckoview.GeckoSessionSettings.USER_AGENT_MODE_DESKTOP 
+                        else org.mozilla.geckoview.GeckoSessionSettings.USER_AGENT_MODE_MOBILE
+                    sess.reload()
+                }
+            }
+        }
+    }
 
     /**
      * FIX (Bug 2): Only save to DB after a genuine page-load completion.

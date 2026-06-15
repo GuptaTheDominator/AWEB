@@ -98,6 +98,7 @@ fun TabStrip(
                         onClose          = { onCloseTab(tab) },
                         onPin            = { onPinTab(tab, !tab.isPinned) },
                         onToggleKeepAlive = { onToggleKeepAlive(tab) },
+                        modifier         = Modifier.animateItemPlacement(),
                     )
                 }
             }
@@ -124,6 +125,7 @@ private fun TabChip(
     onClose          : () -> Unit,
     onPin            : () -> Unit,
     onToggleKeepAlive: () -> Unit,
+    modifier         : Modifier = Modifier,
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -139,7 +141,7 @@ private fun TabChip(
         else          -> Color.Transparent
     }
 
-    Box {
+    Box(modifier = modifier) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier

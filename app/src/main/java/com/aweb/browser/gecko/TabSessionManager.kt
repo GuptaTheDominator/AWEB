@@ -30,7 +30,12 @@ class TabSessionManager @Inject constructor(
             sessions[tab.id]?.let { return it }
         }
         Log.i(TAG, "Creating wrapper tab=${tab.id} ws=${workspace.name}")
-        val w = GeckoSessionWrapper(contextId = workspace.contextId, appContext = context)
+        val uaMode = if (tab.userAgentMode == "desktop") UserAgentManager.UaMode.DESKTOP else UserAgentManager.UaMode.MOBILE
+        val w = GeckoSessionWrapper(
+            contextId = workspace.contextId, 
+            appContext = context,
+            initialUaMode = uaMode
+        )
         // FIX (Bug 12): treat about:* and blank urls as "open empty session"
         val url = tab.url.takeIf { it.isNotBlank() && !it.startsWith("about:") }
         if (url != null) w.loadUrl(url) else w.open()
