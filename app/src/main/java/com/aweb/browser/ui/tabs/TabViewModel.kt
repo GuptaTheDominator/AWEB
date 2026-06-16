@@ -93,7 +93,11 @@ class TabViewModel @Inject constructor(
             val session = safeGetSession(active, ws)
             if (session != null) safeWireCallbacks(session, active)
             
-            val engine = settingsRepo.defaultSearchEngine.first()
+            val engine = try {
+                settingsRepo.defaultSearchEngine.first()
+            } catch (e: Exception) {
+                com.aweb.browser.data.repository.SearchEngine.DUCKDUCKGO
+            }
             AppState.update(ws, tabs, engine)
             
             _uiState.update { it.copy(tabs = tabs, activeTab = active, activeSession = session, isError = false) }

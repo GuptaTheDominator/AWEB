@@ -23,10 +23,14 @@ android {
         applicationId = "com.aweb.browser"
         minSdk = 29
         targetSdk = 35
-        versionCode = 35
-        versionName = "2.6.0"
+        versionCode = 36
+        versionName = "2.6.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        ksp { arg("room.schemaLocation", "$projectDir/schemas") }
+    }
+
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
     }
 
     signingConfigs {

@@ -33,10 +33,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build with Gradle
-        run: ./gradlew assembleRelease --stacktrace
-
-      - name: Verify APK existence
-        run: ls -R app/build/outputs/apk/
+        run: ./gradlew assembleRelease --stacktrace --info
 
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v2
@@ -44,5 +41,6 @@ jobs:
           files: |
             app/build/outputs/apk/release/*.apk
           generate_release_notes: true
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
