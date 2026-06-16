@@ -11,8 +11,11 @@ plugins {
 // ── Signing config ─────────────────────────────────────────────────────────
 
 val keystorePropsFile = rootProject.file("keystore.properties")
-val keystoreProps = Properties().also { props ->
-    if (keystorePropsFile.exists()) props.load(keystorePropsFile.inputStream())
+val keystoreProps = Properties()
+val hasSigning = keystorePropsFile.exists()
+
+if (hasSigning) {
+    keystoreProps.load(keystorePropsFile.inputStream())
 }
 
 android {
@@ -23,8 +26,8 @@ android {
         applicationId  = "com.aweb.browser"
         minSdk         = 29
         targetSdk      = 35
-        versionCode    = 27
-        versionName    = "2.5.2"
+        versionCode    = 31
+        versionName    = "2.5.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -34,8 +37,8 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            if (keystorePropsFile.exists()) {
+        if (hasSigning) {
+            create("release") {
                 storeFile     = file(keystoreProps["storeFile"] as String)
                 storePassword = keystoreProps["storePassword"] as String
                 keyAlias      = keystoreProps["keyAlias"]      as String
@@ -52,7 +55,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.getByName("release")
+            if (hasSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         debug {
             applicationIdSuffix = ".debug"
@@ -60,12 +65,9 @@ android {
         }
     }
 
-    // ── ABI splits ─────────────────────────────────────────────────────────
-    // Release: arm64-v8a only (Redmi Pad SE 4G target, saves ~450MB)
-    // Debug:   universal (needed for x86_64 emulator testing)
     splits {
         abi {
-            isEnable       = buildTypes.getByName("release").isMinifyEnabled
+            isEnable       = true
             reset()
             include("arm64-v8a")
             isUniversalApk = false
@@ -80,7 +82,6 @@ android {
     buildFeatures { compose = true }
 
     packaging {
-        // Strip unused native debug symbols and duplicate META-INF files
         resources {
             excludes += setOf(
                 "/META-INF/{AL2.0,LGPL2.1}",
@@ -89,27 +90,20 @@ android {
                 "META-INF/NOTICE*",
             )
         }
-        // Keep only arm64 .so files — discard everything else GeckoView ships
-        jniLibs {
-            keepDebugSymbols.add("**/*.so")
-        }
     }
 
-    // Unit test options
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
 }
 
 dependencies {
-    // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
 
-    // Compose
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
@@ -118,36 +112,23 @@ dependencies {
     implementation(libs.compose.foundation)
     debugImplementation(libs.compose.ui.tooling)
 
-    // Room
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
 
-    // WorkManager
     implementation(libs.work.runtime.ktx)
-
-    // DataStore
     implementation(libs.datastore.prefs)
-
-    // Startup
     implementation(libs.startup)
 
-    // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.work)
     implementation(libs.hilt.navigation.compose)
 
-    // GeckoView — nightly-omni (confirmed available on maven.mozilla.org)
     implementation(libs.geckoview)
-
-    // Coroutines
     implementation(libs.coroutines.android)
 
-    // Unit tests
     testImplementation("junit:junit:4.13.2")
-
-    // Android instrumented tests
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }

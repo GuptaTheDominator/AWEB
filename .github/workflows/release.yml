@@ -23,8 +23,7 @@ jobs:
 
       - name: Create Keystore
         run: |
-          echo "Generate dummy keystore"
-          keytool -genkey -v -keystore release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias release -storepass password -keypass password -dname "CN=AWEB, OU=Arena, O=Arena, L=SF, S=CA, C=US"
+          keytool -genkeypair -v -keystore release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias release -storepass password -keypass password -dname "CN=AWEB, OU=Arena, O=Arena, L=SF, S=CA, C=US"
           echo "storeFile=../release.jks" > keystore.properties
           echo "storePassword=password" >> keystore.properties
           echo "keyAlias=release" >> keystore.properties
@@ -34,21 +33,11 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build with Gradle
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease --stacktrace
 
-      - name: Get Tag Version
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-      - name: Create Release
-        id: create_release
+      - name: Upload APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.get_version.outputs.VERSION }}
-          name: AWEB ${{ steps.get_version.outputs.VERSION }}
-          draft: false
-          prerelease: false
-          files: |
-            app/build/outputs/apk/release/app-arm64-v8a-release.apk
+          files: app/build/outputs/apk/release/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

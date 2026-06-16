@@ -11,7 +11,6 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // Mozilla GeckoView nightlies / releases are on Maven Central
         maven { url = uri("https://maven.mozilla.org/maven2") }
     }
 }
