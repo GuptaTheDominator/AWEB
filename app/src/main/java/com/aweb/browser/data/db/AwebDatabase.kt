@@ -20,7 +20,7 @@ import com.aweb.browser.data.entity.WorkspaceEntity
         BookmarkEntity::class,
     ],
     version      = 3,
-    exportSchema = true,
+    exportSchema = false,
 )
 abstract class AwebDatabase : RoomDatabase() {
     abstract fun workspaceDao() : WorkspaceDao

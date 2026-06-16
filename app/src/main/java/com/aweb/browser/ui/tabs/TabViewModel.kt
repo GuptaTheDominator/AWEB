@@ -18,6 +18,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.mozilla.geckoview.GeckoSessionSettings
 import javax.inject.Inject
 
 private const val TAG = "TabViewModel"
