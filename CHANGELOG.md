@@ -1,3 +1,15 @@
+## [v2.6.4] — 2026-06-17
+
+### Fixed — release build compilation
+
+- Updated GeckoView `onSecurityChange` callback type for GeckoView 132.
+- Restored missing `UserAgentManager` import in `TabSessionManager`.
+- Fixed Compose `Modifier.padding` usage in the toolbar URL field.
+- Added URL/domain detection helper used by `TabViewModel.loadUrl()`.
+- Bumped Android version to `versionCode 39` / `versionName 2.6.4`.
+
+---
+
 ## [V2.1] — 2026-06-12
 
 ### Fixed — Multi-process crash (AwebApplication in child processes)

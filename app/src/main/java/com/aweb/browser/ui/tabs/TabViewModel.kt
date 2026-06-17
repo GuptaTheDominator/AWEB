@@ -23,6 +23,38 @@ import javax.inject.Inject
 
 private const val TAG = "TabViewModel"
 
+private val COMMON_TLDS = setOf(
+    "com", "org", "net", "in", "co", "io", "dev", "app", "ai", "gov", "edu", "mil",
+    "info", "biz", "me", "xyz", "site", "online", "store", "tech", "blog", "news", "tv",
+    "us", "uk", "ca", "au", "de", "fr", "jp", "cn", "br", "ru", "za", "eu",
+)
+
+private fun looksLikeDomain(input: String): Boolean {
+    val value = input.trim()
+    if (value.isBlank() || value.any { it.isWhitespace() } || value.contains("://")) return false
+
+    val host = value
+        .substringBefore('/')
+        .substringBefore('?')
+        .substringBefore('#')
+        .substringBefore(':')
+        .lowercase()
+
+    if (host == "localhost") return true
+    if (Regex("""\d{1,3}(\.\d{1,3}){3}""").matches(host)) return true
+
+    val labels = host.split('.')
+    if (labels.size < 2 || labels.any { it.isBlank() }) return false
+    if (labels.any { label ->
+            label.startsWith('-') || label.endsWith('-') ||
+                !label.all { it.isLetterOrDigit() || it == '-' }
+        }
+    ) return false
+
+    val tld = labels.last()
+    return tld in COMMON_TLDS || (tld.length == 2 && tld.all { it.isLetter() })
+}
+
 data class TabUiState(
     val tabs: List<TabEntity> = emptyList(),
     val activeTab: TabEntity? = null,

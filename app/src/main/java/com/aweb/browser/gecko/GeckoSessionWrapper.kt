@@ -197,7 +197,10 @@ class GeckoSessionWrapper(
         override fun onPageStart(s: GeckoSession, url: String) { _loading.value = true; _progress.value = 0; _url.value = url }
         override fun onPageStop(s: GeckoSession, success: Boolean) { _loading.value = false; _progress.value = 100 }
         override fun onProgressChange(s: GeckoSession, progress: Int) { _progress.value = progress }
-        override fun onSecurityChange(s: GeckoSession, info: SecurityInformation) { _isSecure.value = info.isSecure }
+        override fun onSecurityChange(
+            s: GeckoSession,
+            info: GeckoSession.ProgressDelegate.SecurityInformation,
+        ) { _isSecure.value = info.isSecure }
     }
 
     private fun buildContentDelegate() = object : ContentDelegate {

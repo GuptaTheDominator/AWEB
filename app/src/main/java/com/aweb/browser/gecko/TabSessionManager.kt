@@ -2,6 +2,7 @@ package com.aweb.browser.gecko
 
 import android.content.Context
 import android.util.Log
+import com.aweb.browser.browser.UserAgentManager
 import com.aweb.browser.data.entity.TabEntity
 import com.aweb.browser.data.entity.WorkspaceEntity
 import dagger.hilt.android.qualifiers.ApplicationContext

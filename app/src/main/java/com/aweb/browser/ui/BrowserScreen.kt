@@ -509,7 +509,9 @@ fun BrowserToolbar(
                 ),
                 textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
                 modifier  = Modifier
-                    .weight(1f).padding(end = 8.dp, vertical = 6.dp)
+                    .weight(1f)
+                    .padding(end = 8.dp)
+                    .padding(vertical = 6.dp)
                     .focusRequester(focusReq)
                     .onFocusChanged { s ->
                         if (s.isFocused && !isEditing) {
