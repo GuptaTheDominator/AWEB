@@ -11,6 +11,7 @@ import com.aweb.browser.AppState
 import com.aweb.browser.data.repository.TabRepository
 import com.aweb.browser.data.repository.WorkspaceRepository
 import com.aweb.browser.lifecycle.TabLifecycleManager
+import com.aweb.browser.security.PrivacySanitizer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -52,7 +53,7 @@ class CrashRecoveryManager(
     fun install() {
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            Log.e(TAG, "Uncaught exception on ${thread.name}", throwable)
+            Log.e(TAG, "Uncaught exception on ${thread.name}: ${PrivacySanitizer.redact(throwable.message)}")
             try {
                 // runBlocking is intentional here: the process is about to die
                 // and we MUST write synchronously before the JVM exits.
@@ -61,7 +62,7 @@ class CrashRecoveryManager(
                 runBlocking {
                     context.crashDataStore.edit { prefs ->
                         prefs[KEY_CLEAN] = false
-                        prefs[KEY_MSG]   = "${throwable.javaClass.simpleName}: ${throwable.message}"
+                        prefs[KEY_MSG]   = PrivacySanitizer.redact("${throwable.javaClass.simpleName}: ${throwable.message}")
                         prefs[KEY_TIME]  = System.currentTimeMillis()
                     }
                 }

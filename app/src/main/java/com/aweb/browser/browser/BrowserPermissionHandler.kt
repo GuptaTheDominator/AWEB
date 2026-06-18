@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoSession
+import com.aweb.browser.security.PrivacySanitizer
 import org.mozilla.geckoview.GeckoSession.PermissionDelegate
 import org.mozilla.geckoview.GeckoSession.PermissionDelegate.MediaSource
 import javax.inject.Inject
@@ -61,7 +62,7 @@ class BrowserPermissionHandler @Inject constructor() {
             session : GeckoSession,
             perm    : PermissionDelegate.ContentPermission,
         ): GeckoResult<Int>? {
-            Log.d(TAG, "Content permission: type=${perm.permission} origin=${perm.uri}")
+            Log.d(TAG, "Content permission: type=${perm.permission} origin=${PrivacySanitizer.redactUrl(perm.uri)}")
             return when (perm.permission) {
                 PermissionDelegate.PERMISSION_GEOLOCATION -> {
                     // Return a GeckoResult that the UI resolves when the user taps Allow/Deny.
@@ -103,7 +104,7 @@ class BrowserPermissionHandler @Inject constructor() {
             audio    : Array<out MediaSource>?,
             callback : PermissionDelegate.MediaCallback,
         ) {
-            Log.d(TAG, "Media permission: uri=$uri video=${video != null} audio=${audio != null}")
+            Log.d(TAG, "Media permission: uri=${PrivacySanitizer.redactUrl(uri)} video=${video != null} audio=${audio != null}")
             val emitted = _requests.tryEmit(
                 PermissionRequest.MediaRequest(
                     origin   = uri,

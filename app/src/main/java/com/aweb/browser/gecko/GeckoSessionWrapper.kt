@@ -8,6 +8,7 @@ import com.aweb.browser.browser.BrowserPermissionHandler
 import com.aweb.browser.browser.DownloadHandler
 import com.aweb.browser.browser.FileUploadHandler
 import com.aweb.browser.browser.UserAgentManager
+import com.aweb.browser.security.PrivacySanitizer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -108,7 +109,7 @@ class GeckoSessionWrapper(
             Log.d(TAG, "Session opened contextId=$contextId")
 
             _pendingUrl?.let {
-                Log.i(TAG, "Processing pending URL: $it")
+                Log.i(TAG, "Processing pending URL: ${PrivacySanitizer.redactUrl(it)}")
                 sess.loadUri(it)
                 _pendingUrl = null
             }
@@ -159,7 +160,7 @@ class GeckoSessionWrapper(
             try {
                 sess.loadUri(url)
             } catch (e: Exception) {
-                Log.e(TAG, "loadUri($url): ${e.message}")
+                Log.e(TAG, "loadUri(${PrivacySanitizer.redactUrl(url)}): ${PrivacySanitizer.redact(e.message)}")
             }
         } else {
             Log.d(TAG, "Session not open, queueing URL: $url")

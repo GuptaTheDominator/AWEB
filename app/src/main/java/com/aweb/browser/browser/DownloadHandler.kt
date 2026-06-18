@@ -35,14 +35,20 @@ class DownloadHandler @Inject constructor() {
         mimeType : String?,
         size     : Long = -1L,
     ): Long {
+        val parsedUri = url.toUri()
+        val scheme = parsedUri.scheme?.lowercase()
+        require(scheme == "http" || scheme == "https") {
+            "Unsupported download URL scheme"
+        }
+
         val safeFilename = sanitiseFilename(url, filename, mimeType)
         val safeMime     = mimeType?.takeIf { it.isNotBlank() }
             ?: guessMimeType(safeFilename)
             ?: "application/octet-stream"
 
-        Log.i(TAG, "Enqueuing download: $safeFilename ($safeMime) size=$size")
+        Log.i(TAG, "Enqueuing download: ${safeFilename.take(32)} ($safeMime) size=$size")
 
-        val request = DownloadManager.Request(url.toUri()).apply {
+        val request = DownloadManager.Request(parsedUri).apply {
             setTitle(safeFilename)
             setDescription("Downloading via AWEB")
             setMimeType(safeMime)

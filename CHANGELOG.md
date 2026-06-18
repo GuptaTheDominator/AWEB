@@ -1,3 +1,17 @@
+## [v2.6.9] — 2026-06-18
+
+### Fixed — Phase 7 security & privacy audit
+
+- Added `PrivacySanitizer` for redacting full URLs, paths, and query values from crash/log messages.
+- Sanitized app-level crash logging and persisted crash recovery messages.
+- Sanitized Gecko pending-navigation and `loadUri` failure logs.
+- Sanitized Gecko permission-origin logs for content/media permission prompts.
+- Hardened downloads to accept only `http` and `https` URLs before handing them to Android `DownloadManager`.
+- Reduced download logging to avoid full source URLs.
+- Added unit tests for URL/query redaction behavior.
+
+---
+
 ## [v2.6.8] — 2026-06-18
 
 ### Enhanced — Phase 8/9 UI/UX + testing

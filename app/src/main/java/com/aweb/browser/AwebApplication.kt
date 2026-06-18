@@ -16,6 +16,7 @@ import com.aweb.browser.lifecycle.MemoryPressureReceiver
 import com.aweb.browser.lifecycle.TabLifecycleManager
 import com.aweb.browser.service.ServiceHealthWorker
 import com.aweb.browser.service.ServiceManager
+import com.aweb.browser.security.PrivacySanitizer
 import com.aweb.browser.service.ServicePreferences
 import dagger.hilt.android.HiltAndroidApp
 import java.io.File
@@ -153,10 +154,10 @@ class AwebApplication : Application(), Configuration.Provider {
     private fun installExceptionLogger() {
         val default = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            Log.e("AWEB_CRASH", "CRASH thread=${thread.name} ${throwable.javaClass.name}: ${throwable.message}")
+            Log.e("AWEB_CRASH", "CRASH thread=${thread.name} ${throwable.javaClass.name}: ${PrivacySanitizer.redact(throwable.message)}")
             throwable.stackTrace.take(30).forEach { Log.e("AWEB_CRASH", "  at $it") }
             throwable.cause?.let { c ->
-                Log.e("AWEB_CRASH", "Caused by: ${c.javaClass.name}: ${c.message}")
+                Log.e("AWEB_CRASH", "Caused by: ${c.javaClass.name}: ${PrivacySanitizer.redact(c.message)}")
                 c.stackTrace.take(10).forEach { Log.e("AWEB_CRASH", "  at $it") }
             }
             default?.uncaughtException(thread, throwable)
