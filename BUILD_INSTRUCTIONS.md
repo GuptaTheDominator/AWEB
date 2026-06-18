@@ -1,63 +1,114 @@
-# AWEB — Build Instructions
+# AWEB Build Instructions
 
-## Prerequisites
+AWEB is an Android/Kotlin project that builds an **ARM64-only APK** for Redmi Pad SE / Android 10+ devices.
 
-| Tool | Version | Notes |
-|---|---|---|
-| Android Studio | Hedgehog (2023.1.1) or newer | Ladybug / Meerkat also fine |
-| JDK | 17 | Temurin recommended |
-| Android SDK | 35 | Via SDK Manager |
-| Kotlin | 2.0.0 | Auto-downloaded by Gradle |
-| ADB | Any recent | For device install |
-| Device | ARM64 Android 10+ | Redmi Pad SE 4G is the target |
+Current source version: `v2.6.12`
+
+Package name: `com.aweb.browser`
+
+Debug package name: `com.aweb.browser.debug`
 
 ---
 
-## 1 — Clone
+## Requirements
+
+| Tool | Required |
+|---|---|
+| JDK | 17 recommended |
+| Android SDK | API 35 |
+| Android Build Tools | 34/35 |
+| Gradle | wrapper included (`./gradlew`) |
+| Device | ARM64 Android 10+ |
+
+The project downloads dependencies from:
+
+- Google Maven
+- Maven Central
+- Mozilla Maven (`https://maven.mozilla.org/maven2`)
+
+GeckoView is large; first sync can take several minutes.
+
+---
+
+## Clone
 
 ```bash
 git clone https://github.com/GuptaTheDominator/AWEB.git
 cd AWEB
+chmod +x gradlew
 ```
 
 ---
 
-## 2 — Debug APK (fastest, no signing needed)
+## Fast validation
+
+Run this before pushing changes:
 
 ```bash
-./gradlew assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+./gradlew compileReleaseKotlin testReleaseUnitTest --no-daemon --stacktrace
+./gradlew lintRelease --no-daemon --stacktrace
 ```
 
-The debug APK has `applicationId = com.aweb.browser.debug` so it can coexist with a release install.
+Expected current status:
+
+- unit tests pass
+- lint has `0 errors` but may show warnings/info
 
 ---
 
-## 3 — Release APK (signed, for daily use)
-
-### 3a — Create a keystore (one time only)
+## Debug APK
 
 ```bash
-keytool -genkey -v \
+./gradlew assembleDebug --no-daemon --stacktrace
+```
+
+Output:
+
+```text
+app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+```
+
+Install:
+
+```bash
+adb install -r app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+```
+
+The debug app has:
+
+```text
+applicationId = com.aweb.browser.debug
+```
+
+so it can coexist with a release install.
+
+---
+
+## Release APK with local signing key
+
+### 1. Generate a keystore once
+
+```bash
+keytool -genkeypair -v \
   -keystore aweb-release.jks \
   -alias aweb \
   -keyalg RSA \
   -keysize 2048 \
   -validity 36500 \
   -storepass YOUR_STORE_PASS \
-  -keypass  YOUR_KEY_PASS \
-  -dname "CN=AWEB, OU=Personal, O=Personal, L=-, S=-, C=IN"
+  -keypass YOUR_KEY_PASS \
+  -dname "CN=AWEB, OU=Personal, O=Personal, L=-, ST=-, C=IN"
 ```
 
-Place `aweb-release.jks` in the **root** of the project (same folder as `settings.gradle.kts`).
+Keep this file safe. Losing it means you cannot update APKs signed with it.
 
-### 3b — Create keystore.properties
+### 2. Configure signing
 
 ```bash
 cp keystore.properties.template keystore.properties
 ```
 
-Edit `keystore.properties`:
+Edit:
 
 ```properties
 storeFile=../aweb-release.jks
@@ -66,17 +117,21 @@ keyAlias=aweb
 keyPassword=YOUR_KEY_PASS
 ```
 
-> ⚠️ `keystore.properties` is in `.gitignore` — it will never be committed.
+`keystore.properties` and `*.jks` are ignored by git.
 
-### 3c — Build
+### 3. Build release APK
 
 ```bash
-./gradlew assembleRelease
+./gradlew assembleRelease --no-daemon --stacktrace
 ```
 
-Output: `app/build/outputs/apk/release/app-arm64-v8a-release.apk`
+Output:
 
-### 3d — Install
+```text
+app/build/outputs/apk/release/app-arm64-v8a-release.apk
+```
+
+Install:
 
 ```bash
 adb install -r app/build/outputs/apk/release/app-arm64-v8a-release.apk
@@ -84,71 +139,149 @@ adb install -r app/build/outputs/apk/release/app-arm64-v8a-release.apk
 
 ---
 
-## 4 — Run unit tests
+## Verify local release APK
 
 ```bash
-./gradlew testReleaseUnitTest
+APK=app/build/outputs/apk/release/app-arm64-v8a-release.apk
+apksigner verify --verbose --print-certs "$APK"
+zipalign -c -p 4 "$APK"
+sha256sum "$APK"
 ```
 
-Tests:
-- `MemoryPolicyTest` — preset correctness (8 assertions)
-- `TabLifecycleStateTest` — DB key round-trip (5 assertions)
-- `WorkspaceIsolationTest` — contextId uniqueness, 50-iteration stress (6 assertions)
-- `DownloadHandlerTest` — filename sanitisation (7 scenarios)
-- `SearchEngineTest` — URL building for DDG / Google / Bing (7 assertions)
-
----
-
-## 5 — GeckoView note
-
-GeckoView is fetched from `https://maven.mozilla.org/maven2`.  
-First Gradle sync downloads **~268 MB** — allow 5–10 minutes.  
-Subsequent syncs use the Gradle cache.
-
-Current version: `geckoview-nightly-omni:132.0.20240929094629`
-
----
-
-## 6 — CI / GitHub Actions
-
-Two workflows are included:
-
-| Workflow | Trigger | Output |
-|---|---|---|
-| `release.yml` | Push tag `v*.*.*` or manual dispatch | Signed ARM64 APK + GitHub Release |
-| `debug.yml` | Push to `main` | Unsigned debug APK artifact |
-
-### Secrets required for release workflow
-
-Set these in **GitHub → Settings → Secrets → Actions**:
-
-| Secret | Value |
-|---|---|
-| `KEYSTORE_BASE64` | `base64 -w0 aweb-release.jks` |
-| `KEYSTORE_PASSWORD` | Your store password |
-| `KEY_ALIAS` | `aweb` |
-| `KEY_PASSWORD` | Your key password |
-
-### Trigger a release manually
+If `apksigner` or `zipalign` is not on PATH, use the versions inside Android Build Tools:
 
 ```bash
-git tag -a v1.0.2 -m "AWEB v1.0.2"
-git push origin v1.0.2
+$ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose --print-certs "$APK"
+$ANDROID_HOME/build-tools/35.0.0/zipalign -c -p 4 "$APK"
 ```
-
-Or use **GitHub → Actions → Build & Release APK → Run workflow**.
 
 ---
 
-## 7 — APK size breakdown
+## Unit tests
 
-| Build type | Size | Why |
-|---|---|---|
-| Fat APK (all ABIs) | ~639 MB | GeckoView ships arm64 + x86 + x86_64 + armeabi-v7a |
-| ARM64-only (current) | ~194 MB | Only arm64-v8a native libs |
-| After R8 + resource shrink | ~194 MB | Kotlin/Compose already well-shrunk |
+```bash
+./gradlew testReleaseUnitTest --no-daemon --stacktrace
+```
 
-The ARM64-only build is produced by:
+Current test coverage includes:
+
+- memory policy presets
+- tab lifecycle state keys
+- workspace context ID isolation logic
+- search engine URL encoding
+- omnibox URL/search parsing
+- HyperOS setup step IDs
+- privacy sanitizer redaction
+- download filename logic
+
+---
+
+## GitHub Actions CI
+
+### `CI` workflow
+
+File:
+
+```text
+.github/workflows/ci.yml
+```
+
+Triggers:
+
+- push to `main`
+- pull request to `main`
+
+Runs:
+
+```text
+testReleaseUnitTest
+lintRelease
+assembleDebug
+```
+
+Uploads a debug ARM64 APK artifact for 7 days.
+
+### `Build and Release` workflow
+
+File:
+
+```text
+.github/workflows/release.yml
+```
+
+Trigger:
+
+```text
+push tag vX.Y.Z
+```
+
+Runs:
+
+1. version/tag consistency check
+2. keystore restore from GitHub Actions secrets
+3. unit tests
+4. lint
+5. release APK build
+6. `apksigner` verification
+7. `zipalign` verification
+8. artifact rename to `AWEB-vX.Y.Z-arm64.apk`
+9. SHA256 generation
+10. GitHub Release upload
+
+---
+
+## GitHub release secrets
+
+Repository secrets required:
+
+```text
+AWEB_KEYSTORE_BASE64
+AWEB_KEYSTORE_PASSWORD
+AWEB_KEY_ALIAS
+AWEB_KEY_PASSWORD
+```
+
+Create base64 keystore value:
+
+```bash
+base64 -w 0 aweb-release.jks
+```
+
+Do not rotate/recreate this keystore unless you accept Android update signature incompatibility.
+
+---
+
+## Publish a tagged release
+
+1. Update `versionName`, `versionCode`, and `CHANGELOG.md`.
+2. Push to `main` and wait for CI success.
+3. Tag exactly matching `versionName`:
+
+```bash
+git tag -a vX.Y.Z -m "AWEB vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+The release workflow creates:
+
+```text
+AWEB-vX.Y.Z-arm64.apk
+AWEB-vX.Y.Z-arm64.apk.sha256
+```
+
+See [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) before publishing.
+
+---
+
+## APK size notes
+
+| Build | Approx size | Notes |
+|---|---:|---|
+| Universal/fat Gecko APK | ~600+ MiB | all native ABIs |
+| AWEB ARM64 release | ~199 MiB | `arm64-v8a` only |
+
+ARM64 split is configured in `app/build.gradle.kts`:
+
 ```kotlin
 splits {
     abi {
@@ -162,63 +295,49 @@ splits {
 
 ---
 
-## 8 — Project structure
+## Device smoke test
 
-```
-AWEB/
-├── app/
-│   ├── src/main/
-│   │   ├── java/com/aweb/browser/
-│   │   │   ├── AwebApplication.kt
-│   │   │   ├── AppState.kt
-│   │   │   ├── browser/          ← Download, FileUpload, Permissions, FindInPage, Fullscreen, UA
-│   │   │   ├── crash/            ← CrashRecoveryManager
-│   │   │   ├── data/             ← Room entities, DAOs, repositories
-│   │   │   ├── di/               ← Hilt modules
-│   │   │   ├── gecko/            ← GeckoRuntime, GeckoSessionWrapper, TabSessionManager
-│   │   │   ├── lifecycle/        ← TabLifecycleManager, MemoryPolicy, MemoryPressureReceiver
-│   │   │   ├── service/          ← ForegroundService, BootReceiver, ServiceHealthWorker
-│   │   │   └── ui/
-│   │   │       ├── BrowserScreen.kt
-│   │   │       ├── MainActivity.kt
-│   │   │       ├── browser/      ← Bookmarks, FindInPageBar, PermissionDialogs
-│   │   │       ├── hardening/    ← CrashBanner, DiagnosticsScreen, HardeningViewModel
-│   │   │       ├── keepalive/    ← KeepAliveManager, Panel, Indicator, CapDialog
-│   │   │       ├── settings/     ← SettingsScreen, MemoryDashboard, SettingsViewModel
-│   │   │       ├── setup/        ← HyperOsSetupScreen, SetupViewModel
-│   │   │       ├── tabs/         ← TabStrip, TabOverview, MemoryStatusBar, TabViewModel
-│   │   │       ├── theme/        ← AwebTheme (dark purple Material 3)
-│   │   │       └── workspace/    ← WorkspaceSidebar, WorkspaceDialogs, WorkspaceViewModel
-│   │   ├── AndroidManifest.xml
-│   │   └── res/
-│   ├── build.gradle.kts
-│   └── proguard-rules.pro
-├── gradle/
-│   ├── libs.versions.toml        ← Version catalog
-│   └── wrapper/
-├── .github/workflows/
-│   ├── release.yml               ← Signed APK + GitHub Release
-│   └── debug.yml                 ← Debug APK on every push to main
-├── gradle.properties
-├── settings.gradle.kts
-├── keystore.properties.template
-├── BUILD_INSTRUCTIONS.md
-├── ARCHITECTURE.md
-└── README.md
-```
+After install on Redmi Pad SE:
+
+- open app cold
+- complete HyperOS setup checklist
+- open a URL
+- create a second workspace
+- verify separate account/session isolation
+- open multiple tabs
+- mark one tab Keep Alive
+- test notification Exit/relaunch behavior
+- test file upload and download
+- test fullscreen video
+- test camera/mic/location permission prompts
 
 ---
 
-## 9 — App data locations (on device)
+## Common problems
 
-```
-/data/data/com.aweb.browser/
-├── databases/
-│   └── aweb.db                   ← Room: workspaces, tabs, bookmarks, settings
-├── files/datastore/
-│   ├── aweb_setup.preferences_pb ← Setup completed flag
-│   └── aweb_crash.preferences_pb ← Crash detection state
-└── (GeckoView profile data managed internally by Gecko per contextId)
+### Signature conflict while installing
+
+Cause: installed APK was signed with a different key.
+
+Fix:
+
+```bash
+adb uninstall com.aweb.browser
+adb install -r AWEB-vX.Y.Z-arm64.apk
 ```
 
-All cloud backup is disabled. No data ever leaves the device.
+Uninstalling removes app data.
+
+### App closes during Gecko startup on HyperOS
+
+Complete HyperOS setup:
+
+- Autostart ON
+- Battery / No restrictions
+- HyperOS Battery Saver / No restrictions
+- Lock in Recent Apps
+- Notifications allowed
+
+### Release workflow fails at signing
+
+Check repository secrets and ensure `AWEB_KEY_PASSWORD` matches the key entry password inside the keystore. For PKCS12 keystores, using the same store/key password is simplest.

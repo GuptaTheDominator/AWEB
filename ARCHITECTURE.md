@@ -96,7 +96,7 @@ GeckoSessionSettings.Builder().contextId(contextId)
 //         GeckoView enforces total storage separation between A and B
 ```
 
-Clearing workspace data = closing the GeckoSession and re-opening it with the same contextId. GeckoView starts a fresh context.
+Clearing workspace data closes live sessions for that workspace and calls GeckoView `StorageController.clearDataForSessionContext(contextId)`, so cookies/storage/cache for that workspace context are cleared without changing the permanent workspace identity.
 
 ---
 

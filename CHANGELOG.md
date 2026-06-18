@@ -1,3 +1,16 @@
+## [v2.6.12] — 2026-06-18
+
+### Documentation refresh
+
+- Rewrote the GitHub front page README for the current source state, completed audit phases, HyperOS setup, privacy notes, install flow, and documentation map.
+- Refreshed build instructions for current ARM64 artifact names, CI workflow, release workflow, signing secrets, APK verification, and troubleshooting.
+- Refreshed security/privacy documentation for workspace isolation, backup blocking, URL redaction, safe downloads, service control, and signing key handling.
+- Added `DOCS.md` as a documentation index for users and maintainers.
+- Updated `RELEASE_CHECKLIST.md` with current CI/release workflow behavior and device smoke tests.
+- Updated architecture notes for Room v4, AppState snapshot semantics, and user-respectful service survival mode.
+
+---
+
 ## [v2.6.11] — 2026-06-18
 
 ### Improved — Phase 11/12 CI, release pipeline, and final planning
