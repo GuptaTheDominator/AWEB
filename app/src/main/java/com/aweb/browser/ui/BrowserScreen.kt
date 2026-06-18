@@ -82,13 +82,21 @@ fun BrowserScreen(
     val session     = tabState.activeSession
     val activeTab   = tabState.activeTab
 
-    val url         by (session?.url         ?: emptyStateFlow("")).collectAsState()
-    val title       by (session?.title       ?: emptyStateFlow("New Tab")).collectAsState()
-    val loading     by (session?.loading     ?: emptyStateFlow(false)).collectAsState()
-    val progress    by (session?.progress    ?: emptyStateFlow(0)).collectAsState()
-    val canGoBack   by (session?.canGoBack   ?: emptyStateFlow(false)).collectAsState()
-    val canGoFwd    by (session?.canGoForward ?: emptyStateFlow(false)).collectAsState()
-    val isSecure    by (session?.isSecure    ?: emptyStateFlow(false)).collectAsState()
+    val emptyUrlFlow = remember { kotlinx.coroutines.flow.MutableStateFlow("") }
+    val emptyTitleFlow = remember { kotlinx.coroutines.flow.MutableStateFlow("New Tab") }
+    val emptyLoadingFlow = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
+    val emptyProgressFlow = remember { kotlinx.coroutines.flow.MutableStateFlow(0) }
+    val emptyBackFlow = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
+    val emptyForwardFlow = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
+    val emptySecureFlow = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
+
+    val url         by (session?.url          ?: emptyUrlFlow).collectAsState()
+    val title       by (session?.title        ?: emptyTitleFlow).collectAsState()
+    val loading     by (session?.loading      ?: emptyLoadingFlow).collectAsState()
+    val progress    by (session?.progress     ?: emptyProgressFlow).collectAsState()
+    val canGoBack   by (session?.canGoBack    ?: emptyBackFlow).collectAsState()
+    val canGoFwd    by (session?.canGoForward ?: emptyForwardFlow).collectAsState()
+    val isSecure    by (session?.isSecure     ?: emptySecureFlow).collectAsState()
 
     val uaModeLabel = activeTab?.userAgentMode ?: "mobile"
     val wsColor     = activeWorkspace?.colorHex ?: "#9C6FFF"
@@ -704,10 +712,6 @@ fun GeckoViewComposable(session: GeckoSession, modifier: Modifier = Modifier) {
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────
-
-@Suppress("UNCHECKED_CAST")
-fun <T> emptyStateFlow(default: T) =
-    kotlinx.coroutines.flow.MutableStateFlow(default) as kotlinx.coroutines.flow.StateFlow<T>
 
 fun parseWsColor(hex: String): Color = runCatching {
     Color(android.graphics.Color.parseColor(hex))

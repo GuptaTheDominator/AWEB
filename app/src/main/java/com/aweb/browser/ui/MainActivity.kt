@@ -145,9 +145,14 @@ fun AwebRootLayout(
         }
     }
 
-    // Update foreground service notification when tabs change
+    // Update foreground service notification only when the values shown in the
+    // notification change. Avoid restarting/delivering a service intent for
+    // every tab title/url DB update.
     val context = androidx.compose.ui.platform.LocalContext.current
-    LaunchedEffect(tabState.tabs) {
+    val notificationStateKey = remember(tabState.tabs) {
+        "${tabState.tabs.size}:${tabState.tabs.count { it.keepAlive }}"
+    }
+    LaunchedEffect(notificationStateKey) {
         serviceManager.requestNotificationUpdate(context)
     }
 

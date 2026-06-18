@@ -7,6 +7,7 @@ import com.aweb.browser.AppState
 import com.aweb.browser.browser.UrlInputParser
 import com.aweb.browser.data.entity.TabEntity
 import com.aweb.browser.data.entity.WorkspaceEntity
+import com.aweb.browser.data.repository.SearchEngine
 import com.aweb.browser.data.repository.TabRepository
 import com.aweb.browser.gecko.GeckoSessionWrapper
 import com.aweb.browser.gecko.TabSessionManager
@@ -45,6 +46,7 @@ class TabViewModel @Inject constructor(
     val uiState: StateFlow<TabUiState> = _uiState.asStateFlow()
     val keepAliveEvent = keepAliveManager.event
     private val _activeWorkspace = MutableStateFlow<WorkspaceEntity?>(null)
+    private val _searchEngine = MutableStateFlow(SearchEngine.DUCKDUCKGO)
     private var wireCallbacksJob: kotlinx.coroutines.Job? = null
 
     val url          get() = _uiState.value.activeSession?.url
@@ -57,6 +59,15 @@ class TabViewModel @Inject constructor(
     val keepAliveCap   get() = lifecycleManager.policy.maxKeepAlive
 
     init {
+        viewModelScope.launch {
+            settingsRepo.defaultSearchEngine
+                .catch { e -> Log.w(TAG, "searchEngine flow: ${e.message}"); emit(SearchEngine.DUCKDUCKGO) }
+                .collect { engine ->
+                    _searchEngine.value = engine
+                    AppState.update(_activeWorkspace.value, _uiState.value.tabs, engine)
+                }
+        }
+
         viewModelScope.launch {
             _activeWorkspace.filterNotNull()
                 .flatMapLatest { ws ->
@@ -94,11 +105,7 @@ class TabViewModel @Inject constructor(
             val session = safeGetSession(active, ws)
             if (session != null) safeWireCallbacks(session, active)
             
-            val engine = try {
-                settingsRepo.defaultSearchEngine.first()
-            } catch (e: Exception) {
-                com.aweb.browser.data.repository.SearchEngine.DUCKDUCKGO
-            }
+            val engine = _searchEngine.value
             AppState.update(ws, tabs, engine)
             
             _uiState.update { it.copy(tabs = tabs, activeTab = active, activeSession = session, isError = false) }
@@ -195,7 +202,8 @@ class TabViewModel @Inject constructor(
         val tabs = _uiState.value.tabs
         viewModelScope.launch {
             try {
-                tabs.forEach { try { lifecycleManager.onTabClosed(it, tabs, ws) } catch (_: Exception) {} }
+                // Bulk close live wrappers instead of launching one lifecycle job per tab.
+                sessionManager.closeAllForWorkspace(tabs.map { it.id })
                 tabRepo.closeAllTabsInWorkspace(ws.id)
                 tabRepo.ensureAtLeastOneTab(ws.id)
             } catch (e: Exception) {
@@ -245,9 +253,7 @@ class TabViewModel @Inject constructor(
             }
             ?: return
 
-        val engine = com.aweb.browser.AppState.currentSearchEngine
-            ?: com.aweb.browser.data.repository.SearchEngine.DUCKDUCKGO
-        val url = UrlInputParser.normalize(input, engine)
+        val url = UrlInputParser.normalize(input, _searchEngine.value)
         try { session.loadUrl(url) } catch (e: Exception) { Log.e(TAG, "loadUrl: ${e.message}") }
     }
 

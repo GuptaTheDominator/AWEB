@@ -1,3 +1,15 @@
+## [v2.6.10] — 2026-06-18
+
+### Improved — Phase 10 performance audit
+
+- Reduced Compose allocation churn in `BrowserScreen` by remembering fallback StateFlows instead of creating new flows on recomposition.
+- Reduced foreground-service notification update traffic by only updating when notification-visible tab counts change.
+- Cached the selected search engine in `TabViewModel` instead of reading DataStore on every tab list emission.
+- Optimized Close All Tabs to bulk-close live session wrappers instead of launching one lifecycle job per tab.
+- Added Phase 10 performance audit report with remaining real-device profiling checklist.
+
+---
+
 ## [v2.6.9] — 2026-06-18
 
 ### Fixed — Phase 7 security & privacy audit
