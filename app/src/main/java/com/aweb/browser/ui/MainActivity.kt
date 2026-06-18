@@ -123,6 +123,7 @@ fun AwebRootLayout(
     val tabState       by tabViewModel.uiState.collectAsState()
     val settingsState  by settingsViewModel.uiState.collectAsState()
     val setupDone      by setupViewModel.setupDone.collectAsState()
+    val setupCompletedSteps by setupViewModel.completedSteps.collectAsState()
     val hardeningState by hardeningViewModel.uiState.collectAsState()
 
     // Keep screen awake flag. MainActivity applies it only while charging.
@@ -242,6 +243,8 @@ fun AwebRootLayout(
                     HyperOsSetupScreen(
                         onDismiss = { showSetup = false },
                         onAllDone = { setupViewModel.markSetupDone() },
+                        completedSteps = setupCompletedSteps,
+                        onStepDoneChange = { stepId, done -> setupViewModel.setStepDone(stepId, done) },
                     )
                 }
             }

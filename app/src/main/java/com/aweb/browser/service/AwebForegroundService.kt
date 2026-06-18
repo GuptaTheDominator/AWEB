@@ -51,9 +51,12 @@ class AwebForegroundService : Service() {
                 try { updateNotification() } catch (e: Exception) { /* non-fatal */ }
             }
             ACTION_STOP_SERVICE -> {
-                Log.i(TAG, "Stop requested")
+                Log.i(TAG, "Stop requested — disabling survival service")
+                ServicePreferences.setEnabled(applicationContext, false)
+                runCatching { ServiceHealthWorker.cancel(applicationContext) }
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+                return START_NOT_STICKY
             }
             else -> {
                 try {
@@ -86,13 +89,19 @@ class AwebForegroundService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         Log.w(TAG, "Task removed")
-        try { ServiceHealthWorker.schedule(applicationContext) }
-        catch (e: Exception) { Log.w(TAG, "Scheduling health worker failed: ${e.message}") }
+        if (ServicePreferences.isEnabled(applicationContext)) {
+            try { ServiceHealthWorker.schedule(applicationContext) }
+            catch (e: Exception) { Log.w(TAG, "Scheduling health worker failed: ${e.message}") }
+        }
         super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
-        Log.w(TAG, "onDestroy — START_STICKY will restart")
+        if (ServicePreferences.isEnabled(applicationContext)) {
+            Log.w(TAG, "onDestroy — START_STICKY may restart")
+        } else {
+            Log.i(TAG, "onDestroy — survival service disabled by user")
+        }
         super.onDestroy()
     }
 

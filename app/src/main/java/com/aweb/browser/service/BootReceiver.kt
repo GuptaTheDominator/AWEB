@@ -25,17 +25,29 @@ class BootReceiver : BroadcastReceiver() {
         if (action != Intent.ACTION_BOOT_COMPLETED &&
             action != Intent.ACTION_MY_PACKAGE_REPLACED) return
 
-        Log.i(TAG, "Received: $action — starting foreground service and health worker")
-
-        // Start foreground service
-        val serviceIntent = Intent(context, AwebForegroundService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(serviceIntent)
-        } else {
-            context.startService(serviceIntent)
+        if (!ServicePreferences.isEnabled(context)) {
+            Log.i(TAG, "Received: $action — survival service disabled, skipping restart")
+            runCatching { ServiceHealthWorker.cancel(context) }
+            return
         }
 
-        // Re-schedule WorkManager health check
-        ServiceHealthWorker.schedule(context)
+        Log.i(TAG, "Received: $action — starting foreground service and health worker")
+
+        // Start foreground service. Some Android/HyperOS builds can still reject
+        // background FGS starts after boot/package replace; never crash the receiver.
+        try {
+            val serviceIntent = Intent(context, AwebForegroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Foreground service start from $action failed: ${e.message}")
+        }
+
+        // Re-schedule WorkManager health check even if immediate FGS start failed.
+        try { ServiceHealthWorker.schedule(context) }
+        catch (e: Exception) { Log.w(TAG, "Health worker schedule failed: ${e.message}") }
     }
 }

@@ -1,3 +1,19 @@
+## [v2.6.7] — 2026-06-18
+
+### Fixed — Phase 6 background service / HyperOS survival audit
+
+- Added persistent survival-service enabled state so the notification Exit action is respected.
+- Notification Exit now disables the survival service, cancels the WorkManager health check, stops foreground mode, and returns `START_NOT_STICKY`.
+- Opening the app re-enables survival mode and starts the foreground service again.
+- Boot receiver now respects the disabled state and wraps foreground-service startup/scheduling in safe fallbacks.
+- WorkManager health checks now skip/cancel themselves when survival mode is disabled.
+- Notification update requests no longer resurrect the service when the user disabled it.
+- Service `onTaskRemoved()` only schedules health checks when survival mode is enabled.
+- HyperOS setup checklist progress is now persisted in DataStore per step.
+- Setup guide now passes persisted step completion state from `SetupViewModel` into the Compose screen.
+
+---
+
 ## [v2.6.6] — 2026-06-18
 
 ### Fixed — Phase 4/5 data + browser feature audit

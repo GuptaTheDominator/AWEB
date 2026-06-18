@@ -21,6 +21,10 @@ class ServiceManager @Inject constructor() {
     }
 
     fun startService(context: Context): Boolean {
+        if (!ServicePreferences.isEnabled(context)) {
+            Log.i(TAG, "Foreground service start skipped — survival service disabled")
+            return false
+        }
         val intent = Intent(context, AwebForegroundService::class.java)
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -49,6 +53,7 @@ class ServiceManager @Inject constructor() {
     }
 
     fun requestNotificationUpdate(context: Context) {
+        if (!ServicePreferences.isEnabled(context)) return
         val intent = Intent(context, AwebForegroundService::class.java).apply {
             action = AwebForegroundService.ACTION_UPDATE_NOTIF
         }

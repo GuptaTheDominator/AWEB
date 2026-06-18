@@ -51,12 +51,14 @@ import androidx.compose.ui.unit.sp
 fun HyperOsSetupScreen(
     onDismiss   : () -> Unit,
     onAllDone   : () -> Unit = {},
+    completedSteps: Set<String> = emptySet(),
+    onStepDoneChange: (String, Boolean) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
     val steps   = rememberSetupSteps(context)
 
     val allRequired = steps.filter { !it.isOptional }
-    val doneCount   = allRequired.count { it.isDone.value }
+    val doneCount   = allRequired.count { it.id in completedSteps }
     val allComplete = doneCount == allRequired.size
 
     Column(
@@ -100,9 +102,12 @@ fun HyperOsSetupScreen(
 
         // ── Steps ─────────────────────────────────────────────────────────
         steps.forEachIndexed { index, step ->
+            val isDone = step.id in completedSteps
             SetupStepCard(
                 stepNumber = index + 1,
                 step       = step,
+                isDone     = isDone,
+                onDoneChange = { done -> onStepDoneChange(step.id, done) },
                 modifier   = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
             )
         }
@@ -147,9 +152,10 @@ fun HyperOsSetupScreen(
 private fun SetupStepCard(
     stepNumber : Int,
     step       : SetupStep,
+    isDone     : Boolean,
+    onDoneChange: (Boolean) -> Unit,
     modifier   : Modifier = Modifier,
 ) {
-    val isDone    by step.isDone
     val expanded  = remember { mutableStateOf(false) }
     val context   = LocalContext.current
 
@@ -273,7 +279,7 @@ private fun SetupStepCard(
 
                     // Mark done toggle
                     OutlinedButton(
-                        onClick = { step.isDone.value = !isDone },
+                        onClick = { onDoneChange(!isDone) },
                         border  = BorderStroke(
                             1.dp,
                             if (isDone) Color(0xFF81C784) else Color(0xFF444444),
@@ -300,12 +306,12 @@ private fun SetupStepCard(
 // ── Setup step model ───────────────────────────────────────────────────────
 
 data class SetupStep(
+    val id             : String,
     val title          : String,
     val subtitle       : String,
     val manualPath     : String,
-    val isOptional     : Boolean               = false,
-    val isDone         : MutableState<Boolean> = mutableStateOf(false),
-    val deepLinkAction : ((Context) -> Unit)?  = null,
+    val isOptional     : Boolean              = false,
+    val deepLinkAction : ((Context) -> Unit)? = null,
 )
 
 @Composable
@@ -314,6 +320,7 @@ private fun rememberSetupSteps(context: Context): List<SetupStep> = remember {
 
         // Step 1 — Autostart
         add(SetupStep(
+            id         = HyperOsSetupStepIds.AUTOSTART,
             title      = "Enable Autostart",
             subtitle   = "Lets AWEB start itself after reboot",
             manualPath = "Settings → Apps → AWEB → Autostart → ON",
@@ -329,6 +336,7 @@ private fun rememberSetupSteps(context: Context): List<SetupStep> = remember {
 
         // Step 2 — Battery Optimization
         add(SetupStep(
+            id         = HyperOsSetupStepIds.BATTERY_OPTIMIZATION,
             title      = "Disable Battery Optimization",
             subtitle   = "Prevents HyperOS from freezing AWEB in background",
             manualPath = "Settings → Apps → AWEB → Battery → No Restrictions",
@@ -347,6 +355,7 @@ private fun rememberSetupSteps(context: Context): List<SetupStep> = remember {
 
         // Step 3 — HyperOS Battery Saver
         add(SetupStep(
+            id         = HyperOsSetupStepIds.HYPEROS_BATTERY_SAVER,
             title      = "Set Battery Saver → No Restrictions",
             subtitle   = "HyperOS-specific setting beyond standard Android",
             manualPath = "Settings → Apps → Manage Apps → AWEB\n→ Battery Saver → No Restrictions",
@@ -362,6 +371,7 @@ private fun rememberSetupSteps(context: Context): List<SetupStep> = remember {
 
         // Step 4 — Lock in recents (manual only — no deep link possible)
         add(SetupStep(
+            id         = HyperOsSetupStepIds.LOCK_RECENTS,
             title      = "Lock AWEB in Recent Apps",
             subtitle   = "Prevents HyperOS from clearing it when RAM is needed",
             manualPath = "Open Recents → Long-press AWEB card → Lock",
@@ -370,6 +380,7 @@ private fun rememberSetupSteps(context: Context): List<SetupStep> = remember {
 
         // Step 5 — Notifications
         add(SetupStep(
+            id         = HyperOsSetupStepIds.NOTIFICATIONS,
             title      = "Allow Notifications",
             subtitle   = "Required for the persistent foreground service notification",
             manualPath = "Settings → Apps → AWEB → Notifications → Allow",
@@ -394,6 +405,7 @@ private fun rememberSetupSteps(context: Context): List<SetupStep> = remember {
 
         // Step 6 — Keep screen awake (optional)
         add(SetupStep(
+            id         = HyperOsSetupStepIds.KEEP_SCREEN_AWAKE,
             title      = "Keep Screen Awake While Charging",
             subtitle   = "Useful for always-on Keep Alive sessions (e.g. trading dashboards)",
             manualPath = "AWEB Settings → Display → Keep screen awake (toggle)\n" +

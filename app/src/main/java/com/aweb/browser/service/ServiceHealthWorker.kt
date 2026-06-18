@@ -61,6 +61,12 @@ class ServiceHealthWorker @AssistedInject constructor(
     }
 
     override suspend fun doWork(): Result {
+        if (!ServicePreferences.isEnabled(applicationContext)) {
+            Log.i(TAG, "Health check skipped — survival service disabled")
+            cancel(applicationContext)
+            return Result.success()
+        }
+
         Log.d(TAG, "Health check running — keepAlive tabs: ${AppState.currentTabs.count { it.keepAlive }}")
 
         // Restart the foreground service if it is not running
@@ -80,6 +86,7 @@ class ServiceHealthWorker @AssistedInject constructor(
     }
 
     private fun ensureServiceRunning() {
+        if (!ServicePreferences.isEnabled(applicationContext)) return
         try {
             val serviceIntent = Intent(applicationContext, AwebForegroundService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

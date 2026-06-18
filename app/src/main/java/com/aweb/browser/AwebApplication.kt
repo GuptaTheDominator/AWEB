@@ -16,6 +16,7 @@ import com.aweb.browser.lifecycle.MemoryPressureReceiver
 import com.aweb.browser.lifecycle.TabLifecycleManager
 import com.aweb.browser.service.ServiceHealthWorker
 import com.aweb.browser.service.ServiceManager
+import com.aweb.browser.service.ServicePreferences
 import dagger.hilt.android.HiltAndroidApp
 import java.io.File
 import javax.inject.Inject
@@ -67,6 +68,10 @@ class AwebApplication : Application(), Configuration.Provider {
         try { crashRecoveryManager.install() }
         catch (e: Exception) { Log.w("AwebApp", "Crash recovery install failed: ${e.message}") }
         createNotificationChannel()
+
+        // Opening the app is an explicit user action: re-enable survival mode
+        // if the previous notification Exit action disabled it.
+        ServicePreferences.setEnabled(this, true)
 
         // Start foreground service IMMEDIATELY so oom_score_adj is elevated
         // before GeckoRuntime spins up (which causes RAM spike and LMKD kill)
