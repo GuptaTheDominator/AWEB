@@ -66,6 +66,7 @@ class WorkspaceRepository @Inject constructor(
     suspend fun deleteWorkspace(id: String) {
         val ws = dao.getById(id) ?: return
         dao.delete(ws)
+        recompactOrder()
     }
 
     suspend fun switchActive(id: String) {
@@ -78,6 +79,15 @@ class WorkspaceRepository @Inject constructor(
         orderedIds.forEachIndexed { index, id ->
             val ws = dao.getById(id) ?: return@forEachIndexed
             dao.update(ws.copy(orderIndex = index, updatedAt = now))
+        }
+    }
+
+    private suspend fun recompactOrder() {
+        val now = System.currentTimeMillis()
+        dao.getAll().forEachIndexed { index, ws ->
+            if (ws.orderIndex != index) {
+                dao.update(ws.copy(orderIndex = index, updatedAt = now))
+            }
         }
     }
 

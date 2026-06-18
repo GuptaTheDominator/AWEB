@@ -66,7 +66,7 @@ class BrowserPermissionHandler @Inject constructor() {
                 PermissionDelegate.PERMISSION_GEOLOCATION -> {
                     // Return a GeckoResult that the UI resolves when the user taps Allow/Deny.
                     val result = GeckoResult<Int>()
-                    _requests.tryEmit(
+                    val emitted = _requests.tryEmit(
                         PermissionRequest.LocationRequest(
                             origin   = perm.uri ?: "this site",
                             callback = object : PermissionDelegate.Callback {
@@ -75,11 +75,12 @@ class BrowserPermissionHandler @Inject constructor() {
                             },
                         )
                     )
+                    if (!emitted) result.complete(PermissionDelegate.ContentPermission.VALUE_DENY)
                     result
                 }
                 PermissionDelegate.PERMISSION_DESKTOP_NOTIFICATION -> {
                     val result = GeckoResult<Int>()
-                    _requests.tryEmit(
+                    val emitted = _requests.tryEmit(
                         PermissionRequest.NotificationRequest(
                             origin   = perm.uri ?: "this site",
                             callback = object : PermissionDelegate.Callback {
@@ -88,6 +89,7 @@ class BrowserPermissionHandler @Inject constructor() {
                             },
                         )
                     )
+                    if (!emitted) result.complete(PermissionDelegate.ContentPermission.VALUE_DENY)
                     result
                 }
                 else -> null
@@ -102,7 +104,7 @@ class BrowserPermissionHandler @Inject constructor() {
             callback : PermissionDelegate.MediaCallback,
         ) {
             Log.d(TAG, "Media permission: uri=$uri video=${video != null} audio=${audio != null}")
-            _requests.tryEmit(
+            val emitted = _requests.tryEmit(
                 PermissionRequest.MediaRequest(
                     origin   = uri,
                     hasVideo = video != null && video.isNotEmpty(),
@@ -110,6 +112,7 @@ class BrowserPermissionHandler @Inject constructor() {
                     callback = callback,
                 )
             )
+            if (!emitted) callback.reject()
         }
     }
 
@@ -125,11 +128,10 @@ class BrowserPermissionHandler @Inject constructor() {
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
 
-    fun requestDownloadConfirmation(url: String, filename: String, mimeType: String?, size: Long) {
+    fun requestDownloadConfirmation(url: String, filename: String, mimeType: String?, size: Long): Boolean =
         _requests.tryEmit(
             PermissionRequest.DownloadRequest(
                 url = url, filename = filename, mimeType = mimeType, size = size
             )
         )
-    }
 }

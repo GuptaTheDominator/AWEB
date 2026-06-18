@@ -25,7 +25,7 @@ import androidx.room.PrimaryKey
             onDelete      = ForeignKey.CASCADE,
         )
     ],
-    indices = [Index("workspace_id")]
+    indices = [Index("workspace_id"), Index("workspace_id", "is_active"), Index("workspace_id", "order_index")]
 )
 data class TabEntity(
     @PrimaryKey

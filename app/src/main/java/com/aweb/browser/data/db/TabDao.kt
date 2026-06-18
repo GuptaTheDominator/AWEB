@@ -34,12 +34,15 @@ interface TabDao {
     @Query("UPDATE tabs SET is_active = 0 WHERE workspace_id = :workspaceId")
     suspend fun clearActiveFlags(workspaceId: String)
 
+    @Query("SELECT EXISTS(SELECT 1 FROM tabs WHERE id = :tabId AND workspace_id = :workspaceId LIMIT 1)")
+    suspend fun existsInWorkspace(workspaceId: String, tabId: String): Boolean
+
     @Query("""
         UPDATE tabs SET is_active = 1, last_accessed = :now, updated_at = :now,
                         last_lifecycle_state = 'active'
-        WHERE id = :tabId
+        WHERE id = :tabId AND workspace_id = :workspaceId
     """)
-    suspend fun setActiveRaw(tabId: String, now: Long = System.currentTimeMillis())
+    suspend fun setActiveRaw(workspaceId: String, tabId: String, now: Long = System.currentTimeMillis()): Int
 
     /**
      * Atomically clears all active flags in a workspace then sets the new active tab.
@@ -47,8 +50,9 @@ interface TabDao {
      */
     @Transaction
     suspend fun setActive(workspaceId: String, tabId: String) {
+        if (!existsInWorkspace(workspaceId, tabId)) return
         clearActiveFlags(workspaceId)
-        setActiveRaw(tabId)
+        setActiveRaw(workspaceId, tabId)
     }
 
     @Query("""

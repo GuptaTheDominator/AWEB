@@ -262,8 +262,10 @@ class GeckoSessionWrapper(
                 Regex("""filename\*?=(?:UTF-8'')?["']?([^"';\s]+)""", RegexOption.IGNORE_CASE).find(cd)?.groupValues?.getOrNull(1)
             } ?: url.substringAfterLast("/").substringBefore("?").takeIf { it.isNotBlank() } ?: "download"
             if (appContext != null && downloadHandler != null) {
-                permissionHandler?.requestDownloadConfirmation(url, filename, mime, size)
-                    ?: downloadHandler.enqueueDownload(appContext, url, filename, mime, size)
+                val confirmationQueued = permissionHandler?.requestDownloadConfirmation(url, filename, mime, size) == true
+                if (!confirmationQueued) {
+                    downloadHandler.enqueueDownload(appContext, url, filename, mime, size)
+                }
             }
         }
     }

@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "bookmarks",
-    indices   = [Index(value = ["url"])]
+    indices   = [Index(value = ["url"], unique = true)]
 )
 data class BookmarkEntity(
     @PrimaryKey

@@ -51,9 +51,7 @@ class BrowserFeatureViewModel @Inject constructor(
     fun toggleBookmark(url: String, title: String) {
         viewModelScope.launch {
             if (_isBookmarked.value) {
-                bookmarkRepo.getAll().firstOrNull { it.url == url }?.let {
-                    bookmarkRepo.remove(it.id)
-                }
+                bookmarkRepo.removeByUrl(url)
                 _isBookmarked.value = false
             } else {
                 bookmarkRepo.add(url, title)
@@ -120,13 +118,17 @@ class BrowserFeatureViewModel @Inject constructor(
     // ── Downloads ─────────────────────────────────────────────────────────
 
     fun confirmDownload(req: BrowserPermissionHandler.PermissionRequest.DownloadRequest) {
-        downloadHandler.enqueueDownload(
-            context  = context,
-            url      = req.url,
-            filename = req.filename,
-            mimeType = req.mimeType,
-            size     = req.size,
-        )
+        try {
+            downloadHandler.enqueueDownload(
+                context  = context,
+                url      = req.url,
+                filename = req.filename,
+                mimeType = req.mimeType,
+                size     = req.size,
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("BrowserFeatureVM", "Download failed: ${e.message}", e)
+        }
     }
 
     // ── File upload ───────────────────────────────────────────────────────

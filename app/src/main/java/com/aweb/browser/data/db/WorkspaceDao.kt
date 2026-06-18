@@ -31,11 +31,15 @@ interface WorkspaceDao {
     @Query("UPDATE workspaces SET is_active = 0")
     suspend fun clearActiveFlags()
 
+    @Query("SELECT EXISTS(SELECT 1 FROM workspaces WHERE id = :id LIMIT 1)")
+    suspend fun exists(id: String): Boolean
+
     @Query("UPDATE workspaces SET is_active = 1, updated_at = :now WHERE id = :id")
-    suspend fun setActive(id: String, now: Long = System.currentTimeMillis())
+    suspend fun setActive(id: String, now: Long = System.currentTimeMillis()): Int
 
     @Transaction
     suspend fun switchActive(id: String) {
+        if (!exists(id)) return
         clearActiveFlags()
         setActive(id)
     }

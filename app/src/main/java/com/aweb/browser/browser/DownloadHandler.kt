@@ -18,26 +18,16 @@ import javax.inject.Singleton
  * GeckoView fires [ContentDelegate.onExternalResponse] for every response
  * that should be downloaded rather than displayed (e.g. application/zip,
  * application/pdf, binary blobs, etc.).
- *
- * We hand these straight to Android's [DownloadManager] which:
- *  - Shows a system progress notification.
- *  - Survives app restarts.
- *  - Saves the file to the user's Downloads folder.
- *
- * The user is always asked to confirm via [DownloadConfirmEvent] before
- * the download starts — [BrowserPermissionHandler] surfaces the dialog.
  */
 @Singleton
 class DownloadHandler @Inject constructor() {
 
     companion object {
         private const val TAG = "DownloadHandler"
+        private val INVALID_FILENAME_CHARS = Regex("[\\\\/:*?\"<>|\\p{Cntrl}]")
+        private const val MAX_FILENAME_LENGTH = 120
     }
 
-    /**
-     * Called from [GeckoSessionWrapper] when Gecko signals a download.
-     * Immediately enqueues to [DownloadManager] and returns the download ID.
-     */
     fun enqueueDownload(
         context  : Context,
         url      : String,
@@ -60,10 +50,9 @@ class DownloadHandler @Inject constructor() {
                 DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
             )
             setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, safeFilename)
-            // Allow download over WiFi and mobile data
             setAllowedNetworkTypes(
                 DownloadManager.Request.NETWORK_WIFI or
-                DownloadManager.Request.NETWORK_MOBILE
+                    DownloadManager.Request.NETWORK_MOBILE
             )
         }
 
@@ -71,19 +60,39 @@ class DownloadHandler @Inject constructor() {
             .enqueue(request)
     }
 
-    private fun sanitiseFilename(url: String, hint: String, mimeType: String?): String {
-        // If hint already looks like a good filename, use it
-        if (hint.isNotBlank() && hint.contains('.')) return hint
+    internal fun sanitiseFilename(url: String, hint: String, mimeType: String?): String {
+        val candidate = sequenceOf(
+            hint,
+            Uri.parse(url).lastPathSegment ?: "",
+            url.substringAfterLast('/').substringBefore('?').substringBefore('#'),
+            "download",
+        ).firstOrNull { it.isNotBlank() } ?: "download"
 
-        // Derive from URL path
-        val path = Uri.parse(url).lastPathSegment ?: "download"
-        if (path.contains('.')) return path
+        var cleaned = Uri.decode(candidate)
+            .substringAfterLast('/')
+            .substringAfterLast('\\')
+            .trim()
+            .replace(INVALID_FILENAME_CHARS, "_")
+            .replace(Regex("_+"), "_")
+            .trim('.', ' ', '_')
 
-        // Append extension from MIME type
-        val ext = mimeType?.let {
-            MimeTypeMap.getSingleton().getExtensionFromMimeType(it)
-        } ?: "bin"
-        return "$path.$ext"
+        if (cleaned.isBlank() || cleaned == "." || cleaned == "..") cleaned = "download"
+
+        if (!cleaned.contains('.')) {
+            val ext = mimeType?.let { MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }
+                ?: guessMimeType(cleaned)?.let { MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }
+                ?: "bin"
+            cleaned = "$cleaned.$ext"
+        }
+
+        if (cleaned.length > MAX_FILENAME_LENGTH) {
+            val ext = cleaned.substringAfterLast('.', missingDelimiterValue = "")
+            cleaned = if (ext.isNotBlank() && ext.length < 12) {
+                cleaned.take(MAX_FILENAME_LENGTH - ext.length - 1) + "." + ext
+            } else cleaned.take(MAX_FILENAME_LENGTH)
+        }
+
+        return cleaned
     }
 
     private fun guessMimeType(filename: String): String? {

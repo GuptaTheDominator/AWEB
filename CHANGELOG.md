@@ -1,3 +1,19 @@
+## [v2.6.6] — 2026-06-18
+
+### Fixed — Phase 4/5 data + browser feature audit
+
+- Bumped Room database to v4 with unique bookmark URLs and additional tab query indexes.
+- Added migration 3→4 to deduplicate existing bookmarks, recreate the unique bookmark URL index, and add tab workspace/active/order indexes.
+- Hardened tab active-state updates so a tab can only be activated inside its own workspace.
+- Hardened workspace active-state updates so invalid workspace IDs do not clear the active workspace.
+- Recompacted workspace order after workspace deletion.
+- Normalized bookmark add/remove/check operations and removed bookmark deletion by full-list scan.
+- Sanitized download filenames against path traversal, invalid characters, empty names, and overly long filenames.
+- Prevented Gecko permission requests from hanging if the UI request buffer is full.
+- Added download enqueue error logging in browser feature handling.
+
+---
+
 ## [v2.6.5] — 2026-06-18
 
 ### Fixed — Phase 1/2 audit issues + Phase 3 startup/memory kickoff

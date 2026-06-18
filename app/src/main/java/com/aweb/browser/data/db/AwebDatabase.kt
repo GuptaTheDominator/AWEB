@@ -8,7 +8,7 @@ import com.aweb.browser.data.entity.TabEntity
 import com.aweb.browser.data.entity.WorkspaceEntity
 
 /**
- * Room database — version 3 adds [BookmarkEntity] and per-tab user-agent mode.
+ * Room database — version 4 adds unique bookmark URLs on top of bookmarks and per-tab user-agent mode.
  * Production migrations are registered in [DatabaseModule].
  */
 @Database(
@@ -18,7 +18,7 @@ import com.aweb.browser.data.entity.WorkspaceEntity
         AppSettingEntity::class,
         BookmarkEntity::class,
     ],
-    version      = 3,
+    version      = 4,
     exportSchema = false,
 )
 abstract class AwebDatabase : RoomDatabase() {
