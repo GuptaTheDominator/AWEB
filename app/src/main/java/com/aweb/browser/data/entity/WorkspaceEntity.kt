@@ -30,7 +30,7 @@ data class WorkspaceEntity(
     val contextId: String,               // permanent workspace isolation key
 
     @ColumnInfo(name = "color_hex")
-    val colorHex: String? = null,        // e.g. "#9C6FFF"
+    val colorHex: String? = null,        // e.g. "#2F8CFF"
 
     @ColumnInfo(name = "icon_name")
     val iconName: String? = null,        // material icon name

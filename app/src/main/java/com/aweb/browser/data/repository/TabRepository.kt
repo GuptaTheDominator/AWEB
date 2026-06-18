@@ -20,6 +20,8 @@ class TabRepository @Inject constructor(
     private val dao: TabDao,
 ) {
 
+    fun observeAllTabs(): Flow<List<TabEntity>> = dao.observeAll()
+
     fun observeTabsForWorkspace(workspaceId: String): Flow<List<TabEntity>> =
         dao.observeByWorkspace(workspaceId)
 

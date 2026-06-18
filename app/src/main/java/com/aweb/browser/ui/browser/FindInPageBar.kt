@@ -70,7 +70,7 @@ fun FindInPageBar(
                     unfocusedTextColor      = Color.White,
                     focusedIndicatorColor   = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
-                    cursorColor             = Color(0xFF9C6FFF),
+                    cursorColor             = Color(0xFF2F8CFF),
                 ),
                 textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
                 modifier  = Modifier
@@ -82,7 +82,7 @@ fun FindInPageBar(
             if (result.total > 0 || query.text.isNotBlank()) {
                 Text(
                     if (result.found) "${result.current}/${result.total}" else "0/0",
-                    color    = if (result.found) Color(0xFF9C6FFF) else Color(0xFFCF6679),
+                    color    = if (result.found) Color(0xFF2F8CFF) else Color(0xFFFF5C7A),
                     fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 8.dp),
                 )

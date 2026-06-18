@@ -60,14 +60,14 @@ fun CrashRecoveryBanner(
             Icon(
                 Icons.Filled.Warning,
                 contentDescription = null,
-                tint     = Color(0xFFFFB74D),
+                tint     = Color(0xFFFFC857),
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     "AWEB recovered from an unexpected exit",
-                    color      = Color(0xFFFFB74D),
+                    color      = Color(0xFFFFC857),
                     fontSize   = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                 )

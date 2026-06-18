@@ -62,7 +62,7 @@ fun BookmarksPanel(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
-                Icon(Icons.Filled.Bookmark, null, tint = Color(0xFF9C6FFF), modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.Bookmark, null, tint = Color(0xFF2F8CFF), modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text("Bookmarks", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
@@ -132,7 +132,7 @@ private fun BookmarkRow(
         ) {
             Icon(
                 Icons.Filled.Bookmark, null,
-                tint     = Color(0xFF9C6FFF).copy(alpha = 0.7f),
+                tint     = Color(0xFF2F8CFF).copy(alpha = 0.7f),
                 modifier = Modifier.size(16.dp),
             )
             Spacer(Modifier.width(10.dp))
@@ -172,8 +172,8 @@ private fun BookmarkRow(
                 onClick = { showMenu = false; onOpen() },
             )
             DropdownMenuItem(
-                text    = { Text("Delete bookmark", color = Color(0xFFCF6679)) },
-                leadingIcon = { Icon(Icons.Filled.Delete, null, tint = Color(0xFFCF6679)) },
+                text    = { Text("Delete bookmark", color = Color(0xFFFF5C7A)) },
+                leadingIcon = { Icon(Icons.Filled.Delete, null, tint = Color(0xFFFF5C7A)) },
                 onClick = { showMenu = false; onDelete() },
             )
         }

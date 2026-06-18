@@ -65,34 +65,34 @@ fun DiagnosticsScreen(
         DiagSection("App") {
             val pm      = context.packageManager
             val pkgInfo = runCatching { pm.getPackageInfo(context.packageName, 0) }.getOrNull()
-            DiagRow(Icons.Filled.Info, "Package",     context.packageName,        Color(0xFF9C6FFF))
-            DiagRow(Icons.Filled.Tag,  "Version",     pkgInfo?.versionName ?: "?", Color(0xFF9C6FFF))
-            DiagRow(Icons.Filled.Code, "Version code","${pkgInfo?.longVersionCode ?: 0}", Color(0xFF9C6FFF))
+            DiagRow(Icons.Filled.Info, "Package",     context.packageName,        Color(0xFF2F8CFF))
+            DiagRow(Icons.Filled.Tag,  "Version",     pkgInfo?.versionName ?: "?", Color(0xFF2F8CFF))
+            DiagRow(Icons.Filled.Code, "Version code","${pkgInfo?.longVersionCode ?: 0}", Color(0xFF2F8CFF))
         }
 
         // ── Session state ─────────────────────────────────────────────────
         DiagSection("Session State") {
             DiagRow(Icons.Filled.Workspaces, "Active workspace",
-                ws?.name ?: "none", Color(0xFF4FC3F7))
+                ws?.name ?: "none", Color(0xFF4DD8FF))
             DiagRow(Icons.Filled.Tab, "Total tabs",
-                "${tabs.size}", Color(0xFF4FC3F7))
+                "${tabs.size}", Color(0xFF4DD8FF))
             DiagRow(Icons.Filled.Bolt, "Keep Alive tabs",
-                "${tabs.count { it.keepAlive }}", Color(0xFFFFB74D))
+                "${tabs.count { it.keepAlive }}", Color(0xFFFFC857))
             DiagRow(Icons.Filled.Circle, "Active tab",
                 tabs.firstOrNull { it.isActive }?.title?.take(30) ?: "none", Color(0xFF81C784))
             DiagRow(Icons.Filled.Memory, "Context IDs",
-                "${tabs.map { it.workspaceId }.toSet().size} workspace(s)", Color(0xFF9C6FFF))
+                "${tabs.map { it.workspaceId }.toSet().size} workspace(s)", Color(0xFF2F8CFF))
         }
 
         // ── Crash info ────────────────────────────────────────────────────
         DiagSection("Crash Info") {
             val info = state.crashInfo
             if (info != null) {
-                DiagRow(Icons.Filled.Warning, "Last crash", info.lastCrashMessage, Color(0xFFCF6679))
+                DiagRow(Icons.Filled.Warning, "Last crash", info.lastCrashMessage, Color(0xFFFF5C7A))
                 DiagRow(Icons.Filled.Schedule, "Crash time",
                     java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",
                         java.util.Locale.getDefault()).format(java.util.Date(info.lastCrashTime)),
-                    Color(0xFFCF6679))
+                    Color(0xFFFF5C7A))
             } else {
                 DiagRow(Icons.Filled.CheckCircle, "No crash detected", "Clean exit", Color(0xFF81C784))
             }
@@ -113,7 +113,7 @@ fun DiagnosticsScreen(
                 Text("Run Isolation Check", color = Color(0xFF81C784), fontSize = 13.sp)
             }
             isolationResult?.let {
-                Text(it, color = if (it.startsWith("✓")) Color(0xFF81C784) else Color(0xFFCF6679),
+                Text(it, color = if (it.startsWith("✓")) Color(0xFF81C784) else Color(0xFFFF5C7A),
                     fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
             }
 
@@ -134,15 +134,15 @@ fun DiagnosticsScreen(
                 colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A2A)),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
             ) {
-                Icon(Icons.Filled.Storage, null, tint = Color(0xFF4FC3F7), modifier = Modifier.size(16.dp))
+                Icon(Icons.Filled.Storage, null, tint = Color(0xFF4DD8FF), modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Run Persistence Check", color = Color(0xFF4FC3F7), fontSize = 13.sp)
+                Text("Run Persistence Check", color = Color(0xFF4DD8FF), fontSize = 13.sp)
             }
             persistenceResult?.let {
                 Text(it, color = when {
                     it.startsWith("✓") -> Color(0xFF81C784)
-                    it.startsWith("⚠") -> Color(0xFFFFB74D)
-                    else               -> Color(0xFFCF6679)
+                    it.startsWith("⚠") -> Color(0xFFFFC857)
+                    else               -> Color(0xFFFF5C7A)
                 }, fontSize = 12.sp)
             }
         }

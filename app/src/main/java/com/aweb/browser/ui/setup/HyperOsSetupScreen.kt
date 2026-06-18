@@ -119,7 +119,7 @@ fun HyperOsSetupScreen(
             onClick = { onAllDone(); onDismiss() },
             enabled = allComplete,
             colors  = ButtonDefaults.buttonColors(
-                containerColor        = Color(0xFF9C6FFF),
+                containerColor        = Color(0xFF2F8CFF),
                 contentColor          = Color.Black,
                 disabledContainerColor = Color(0xFF2A2A2A),
                 disabledContentColor  = Color(0xFF555555),
@@ -162,7 +162,7 @@ private fun SetupStepCard(
     val borderColor = when {
         isDone           -> Color(0xFF81C784).copy(alpha = 0.4f)
         step.isOptional  -> Color(0xFF2A2A2A)
-        else             -> Color(0xFF9C6FFF).copy(alpha = 0.3f)
+        else             -> Color(0xFF2F8CFF).copy(alpha = 0.3f)
     }
     val bg = when {
         isDone -> Color(0xFF0D1A0D)
@@ -189,7 +189,7 @@ private fun SetupStepCard(
                         when {
                             isDone          -> Color(0xFF81C784)
                             step.isOptional -> Color(0xFF2A2A2A)
-                            else            -> Color(0xFF9C6FFF)
+                            else            -> Color(0xFF2F8CFF)
                         }
                     ),
             ) {
@@ -266,7 +266,7 @@ private fun SetupStepCard(
                                 try { step.deepLinkAction.invoke(context) } catch (_: Exception) {}
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF9C6FFF),
+                                containerColor = Color(0xFF2F8CFF),
                                 contentColor   = Color.Black,
                             ),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),

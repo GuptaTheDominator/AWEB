@@ -10,28 +10,35 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Surface
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.aweb.browser.data.entity.WorkspaceEntity
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import com.aweb.browser.gecko.TabSessionManager
 import com.aweb.browser.service.ServiceManager
 import com.aweb.browser.ui.hardening.CrashRecoveryBanner
 import com.aweb.browser.ui.hardening.DiagnosticsScreen
 import com.aweb.browser.ui.hardening.HardeningViewModel
+import com.aweb.browser.ui.home.HomeScreen
 import com.aweb.browser.ui.settings.SettingsScreen
 import com.aweb.browser.ui.settings.SettingsViewModel
 import com.aweb.browser.ui.setup.HyperOsSetupScreen
+import com.aweb.browser.ui.setup.HyperOsSetupStepIds
 import com.aweb.browser.ui.setup.SetupViewModel
 import com.aweb.browser.ui.tabs.TabViewModel
+import com.aweb.browser.ui.tabs.TabsManagerScreen
+import com.aweb.browser.ui.theme.AwebColors
 import com.aweb.browser.ui.theme.AwebTheme
-import com.aweb.browser.ui.workspace.*
+import com.aweb.browser.ui.workspace.WorkspaceViewModel
+import com.aweb.browser.ui.workspace.WorkspacesScreen
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 import javax.inject.Inject
@@ -105,6 +112,19 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private enum class AwebRoute(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Home("home", "Home", Icons.Filled.Dashboard),
+    Spaces("spaces", "Spaces", Icons.Filled.Workspaces),
+    Browse("browse", "Browse", Icons.Filled.TravelExplore),
+    Tabs("tabs", "Tabs", Icons.Filled.Tab),
+    Settings("settings", "Settings", Icons.Filled.Settings),
+}
+
+private object SecondaryRoute {
+    const val Setup = "setup"
+    const val Diagnostics = "diagnostics"
+}
+
 @Composable
 fun AwebRootLayout(
     tabSessionManager : TabSessionManager,
@@ -113,6 +133,7 @@ fun AwebRootLayout(
     onExternalUrlConsumed: () -> Unit = {},
     onKeepScreenAwake : (Boolean) -> Unit,
 ) {
+    val navController = rememberNavController()
     val wsViewModel       : WorkspaceViewModel = hiltViewModel()
     val tabViewModel      : TabViewModel       = hiltViewModel()
     val settingsViewModel : SettingsViewModel  = hiltViewModel()
@@ -126,28 +147,35 @@ fun AwebRootLayout(
     val setupCompletedSteps by setupViewModel.completedSteps.collectAsState()
     val hardeningState by hardeningViewModel.uiState.collectAsState()
 
-    // Keep screen awake flag. MainActivity applies it only while charging.
+    fun navigatePrimary(route: AwebRoute) {
+        navController.navigate(route.route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
+    fun navigateSecondary(route: String) {
+        navController.navigate(route) { launchSingleTop = true }
+    }
+
     LaunchedEffect(settingsState.keepScreenAwake) {
         onKeepScreenAwake(settingsState.keepScreenAwake)
     }
 
-    // Sync TabViewModel with active workspace
     LaunchedEffect(wsState.activeWorkspace) {
         wsState.activeWorkspace?.let { tabViewModel.setWorkspace(it) }
     }
 
-    // Open URLs sent by Android ACTION_VIEW intents once a workspace is ready.
     LaunchedEffect(externalUrl, wsState.activeWorkspace?.id) {
         val url = externalUrl
         if (url != null && wsState.activeWorkspace != null) {
             tabViewModel.openNewTab(url)
             onExternalUrlConsumed()
+            navigatePrimary(AwebRoute.Browse)
         }
     }
 
-    // Update foreground service notification only when the values shown in the
-    // notification change. Avoid restarting/delivering a service intent for
-    // every tab title/url DB update.
     val context = androidx.compose.ui.platform.LocalContext.current
     val notificationStateKey = remember(tabState.tabs) {
         "${tabState.tabs.size}:${tabState.tabs.count { it.keepAlive }}"
@@ -156,146 +184,127 @@ fun AwebRootLayout(
         serviceManager.requestNotificationUpdate(context)
     }
 
-    // Mark session clean when Activity leaves foreground
     DisposableEffect(Unit) {
         onDispose { hardeningViewModel.markClean() }
     }
 
-    var showSettings    by remember { mutableStateOf(false) }
-    var showSetup       by remember { mutableStateOf(false) }
-    var showDiagnostics by remember { mutableStateOf(false) }
-    var renameTarget    by remember { mutableStateOf<WorkspaceEntity?>(null) }
-    var clearTarget     by remember { mutableStateOf<WorkspaceEntity?>(null) }
-
-    // Show setup guide on first launch only
+    var setupPrompted by remember { mutableStateOf(false) }
     LaunchedEffect(setupDone) {
-        if (!setupDone) showSetup = true
+        if (!setupDone && !setupPrompted) {
+            setupPrompted = true
+            navigateSecondary(SecondaryRoute.Setup)
+        }
     }
 
-    Surface(color = Color(0xFF0F0F0F), modifier = Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize()) {
+    val navBackStack by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStack?.destination?.route
+    val showBottomBar = AwebRoute.entries.any { it.route == currentRoute }
 
-            // Main layout: sidebar + browser
-            Row(Modifier.fillMaxSize()) {
-                WorkspaceSidebar(
-                    workspaces       = wsState.workspaces,
-                    activeWorkspace  = wsState.activeWorkspace,
-                    activeTabs       = tabState.tabs,
-                    liveSessionCount = tabSessionManager.liveSessionCount,
-                    onSwitch         = { wsViewModel.switchWorkspace(it) },
-                    onNew            = { wsViewModel.showCreateDialog() },
-                    onRename         = { renameTarget = it },
-                    onDelete         = { wsViewModel.confirmDeleteWorkspace(it) },
-                    onClearData      = { clearTarget = it },
-                    onOpenSettings   = { showSettings = true },
-                )
-                Box(Modifier.weight(1f).fillMaxHeight()) {
-                    AnimatedContent(
-                        targetState = wsState.activeWorkspace?.id,
-                        transitionSpec = {
-                            (fadeIn() + scaleIn(initialScale = 0.98f)).togetherWith(fadeOut())
-                        },
-                        label = "workspaceSwitch"
-                    ) { targetWorkspaceId ->
-                        key(targetWorkspaceId) {
-                            BrowserScreen(
-                                tabViewModel    = tabViewModel,
-                                activeWorkspace = wsState.activeWorkspace,
-                            )
-                        }
+    Scaffold(
+        containerColor = AwebColors.InkDeep,
+        bottomBar = {
+            if (showBottomBar) {
+                NavigationBar(containerColor = AwebColors.Navy, contentColor = AwebColors.TextPrimary) {
+                    AwebRoute.entries.forEach { route ->
+                        NavigationBarItem(
+                            selected = currentRoute == route.route,
+                            onClick = { navigatePrimary(route) },
+                            icon = { Icon(route.icon, contentDescription = route.label) },
+                            label = { Text(route.label) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = AwebColors.Cyan,
+                                selectedTextColor = AwebColors.Cyan,
+                                indicatorColor = AwebColors.SurfaceHigh,
+                                unselectedIconColor = AwebColors.TextMuted,
+                                unselectedTextColor = AwebColors.TextMuted,
+                            ),
+                        )
                     }
                 }
             }
-
-            // Crash recovery banner
-            if (hardeningState.showCrashBanner) {
-                hardeningState.crashInfo?.let { info ->
-                    CrashRecoveryBanner(
-                        crashMessage = info.lastCrashMessage,
-                        crashTime    = info.lastCrashTime,
-                        onDismiss    = { hardeningViewModel.dismissCrashBanner() },
-                        modifier     = Modifier
-                            .align(Alignment.TopCenter)
-                            .fillMaxWidth()
-                            .padding(start = 220.dp),
+        },
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            NavHost(navController = navController, startDestination = AwebRoute.Home.route) {
+                composable(AwebRoute.Home.route) {
+                    HomeScreen(
+                        workspaces = wsState.workspaces,
+                        tabs = wsState.allTabs,
+                        activeWorkspace = wsState.activeWorkspace,
+                        setupDone = setupDone,
+                        setupCompletedCount = setupCompletedSteps.count { it in HyperOsSetupStepIds.REQUIRED },
+                        setupRequiredCount = HyperOsSetupStepIds.REQUIRED.size,
+                        onOpenBrowser = { navigatePrimary(AwebRoute.Browse) },
+                        onOpenSettings = { navigatePrimary(AwebRoute.Settings) },
+                        onOpenSpaces = { navigatePrimary(AwebRoute.Spaces) },
+                        onOpenTabs = { navigatePrimary(AwebRoute.Tabs) },
+                        onOpenSetup = { navigateSecondary(SecondaryRoute.Setup) },
+                        onOpenDiagnostics = { navigateSecondary(SecondaryRoute.Diagnostics) },
                     )
                 }
-            }
-
-            // Settings overlay
-            AnimatedVisibility(
-                visible  = showSettings,
-                enter    = slideInHorizontally { it } + fadeIn(),
-                exit     = slideOutHorizontally { it } + fadeOut(),
-            ) {
-                Surface(color = Color(0xFF0F0F0F), modifier = Modifier.fillMaxSize()) {
+                composable(AwebRoute.Spaces.route) {
+                    WorkspacesScreen(
+                        workspaces = wsState.workspaces,
+                        activeWorkspace = wsState.activeWorkspace,
+                        tabs = wsState.allTabs,
+                        onSwitchWorkspace = { wsViewModel.switchWorkspace(it) },
+                        onCreateWorkspace = { name, color -> wsViewModel.createWorkspace(name, color) },
+                        onClearWorkspace = { wsViewModel.clearWorkspaceData(it) },
+                        onOpenBrowser = { navigatePrimary(AwebRoute.Browse) },
+                    )
+                }
+                composable(AwebRoute.Browse.route) {
+                    BrowserScreen(
+                        tabViewModel = tabViewModel,
+                        activeWorkspace = wsState.activeWorkspace,
+                    )
+                }
+                composable(AwebRoute.Tabs.route) {
+                    TabsManagerScreen(
+                        tabs = tabState.tabs,
+                        workspaces = wsState.workspaces,
+                        activeTabId = tabState.activeTab?.id,
+                        onOpenTab = { tab -> tabViewModel.selectTab(tab); navigatePrimary(AwebRoute.Browse) },
+                        onCloseTab = { tabViewModel.closeTab(it) },
+                        onPinTab = { tab, pinned -> tabViewModel.setPinned(tab, pinned) },
+                        onToggleKeepAlive = { tabViewModel.toggleKeepAlive(it) },
+                        onNewTab = { tabViewModel.openNewTab(); navigatePrimary(AwebRoute.Browse) },
+                    )
+                }
+                composable(AwebRoute.Settings.route) {
                     SettingsScreen(
-                        onDismiss         = { showSettings = false },
-                        viewModel         = settingsViewModel,
-                        onOpenSetup       = { showSetup = true },
-                        onOpenDiagnostics = { showDiagnostics = true },
+                        onDismiss = { navigatePrimary(AwebRoute.Home) },
+                        viewModel = settingsViewModel,
+                        onOpenSetup = { navigateSecondary(SecondaryRoute.Setup) },
+                        onOpenDiagnostics = { navigateSecondary(SecondaryRoute.Diagnostics) },
                     )
                 }
-            }
-
-            // HyperOS setup overlay
-            AnimatedVisibility(
-                visible  = showSetup,
-                enter    = slideInVertically { -it } + fadeIn(),
-                exit     = slideOutVertically { -it } + fadeOut(),
-            ) {
-                Surface(color = Color(0xFF0F0F0F), modifier = Modifier.fillMaxSize()) {
+                composable(SecondaryRoute.Setup) {
                     HyperOsSetupScreen(
-                        onDismiss = { showSetup = false },
+                        onDismiss = { navController.popBackStack() },
                         onAllDone = { setupViewModel.markSetupDone() },
                         completedSteps = setupCompletedSteps,
                         onStepDoneChange = { stepId, done -> setupViewModel.setStepDone(stepId, done) },
                     )
                 }
-            }
-
-            // Diagnostics overlay
-            AnimatedVisibility(
-                visible  = showDiagnostics,
-                enter    = slideInHorizontally { it } + fadeIn(),
-                exit     = slideOutHorizontally { it } + fadeOut(),
-            ) {
-                Surface(color = Color(0xFF0F0F0F), modifier = Modifier.fillMaxSize()) {
+                composable(SecondaryRoute.Diagnostics) {
                     DiagnosticsScreen(
-                        onDismiss = { showDiagnostics = false },
+                        onDismiss = { navController.popBackStack() },
                         viewModel = hardeningViewModel,
                     )
                 }
             }
-        }
-    }
 
-    // Workspace dialogs
-    if (wsState.showCreateDialog) {
-        CreateWorkspaceDialog(
-            onConfirm = { name, color -> wsViewModel.createWorkspace(name, color) },
-            onDismiss = { wsViewModel.dismissCreateDialog() },
-        )
-    }
-    renameTarget?.let { ws ->
-        RenameWorkspaceDialog(
-            workspace = ws,
-            onConfirm = { name -> wsViewModel.renameWorkspace(ws.id, name); renameTarget = null },
-            onDismiss = { renameTarget = null },
-        )
-    }
-    wsState.showDeleteDialog?.let { ws ->
-        DeleteWorkspaceDialog(
-            workspace = ws,
-            onConfirm = { wsViewModel.deleteWorkspace(ws) },
-            onDismiss = { wsViewModel.dismissDeleteDialog() },
-        )
-    }
-    clearTarget?.let { ws ->
-        ClearWorkspaceDataDialog(
-            workspace = ws,
-            onConfirm = { wsViewModel.clearWorkspaceData(ws); clearTarget = null },
-            onDismiss = { clearTarget = null },
-        )
+            if (hardeningState.showCrashBanner) {
+                hardeningState.crashInfo?.let { info ->
+                    CrashRecoveryBanner(
+                        crashMessage = info.lastCrashMessage,
+                        crashTime = info.lastCrashTime,
+                        onDismiss = { hardeningViewModel.dismissCrashBanner() },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
     }
 }

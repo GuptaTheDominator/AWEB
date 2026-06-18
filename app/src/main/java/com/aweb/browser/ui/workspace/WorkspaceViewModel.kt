@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aweb.browser.AppState
+import com.aweb.browser.data.entity.TabEntity
 import com.aweb.browser.data.entity.WorkspaceEntity
 import com.aweb.browser.data.repository.SettingsRepository
 import com.aweb.browser.data.repository.TabRepository
@@ -24,6 +25,7 @@ private const val TAG = "WorkspaceViewModel"
 
 data class WorkspaceUiState(
     val workspaces      : List<WorkspaceEntity> = emptyList(),
+    val allTabs         : List<TabEntity>        = emptyList(),
     val activeWorkspace : WorkspaceEntity?      = null,
     val isLoading       : Boolean               = true,
     val showCreateDialog: Boolean               = false,
@@ -74,6 +76,17 @@ class WorkspaceViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "Workspace collect failed: ${e.message}", e)
                 _uiState.update { it.copy(isLoading = false) }
+            }
+        }
+
+        // Keep a lightweight all-tabs snapshot for dashboards and workspace tab counts.
+        viewModelScope.launch {
+            try {
+                tabRepo.observeAllTabs()
+                    .catch { e -> Log.w(TAG, "allTabs flow error: ${e.message}"); emit(emptyList()) }
+                    .collect { tabs -> _uiState.update { it.copy(allTabs = tabs) } }
+            } catch (e: Exception) {
+                Log.w(TAG, "allTabs collect failed: ${e.message}")
             }
         }
 

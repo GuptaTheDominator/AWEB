@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /** Amber Keep Alive bolt colour — consistent across all UI surfaces. */
-val KeepAliveColor = Color(0xFFFFB74D)
+val KeepAliveColor = Color(0xFFFFC857)
 
 /**
  * Pulsing bolt icon shown on Keep Alive tabs.

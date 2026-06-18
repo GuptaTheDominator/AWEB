@@ -7,6 +7,9 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface TabDao {
 
+    @Query("SELECT * FROM tabs ORDER BY workspace_id ASC, order_index ASC")
+    fun observeAll(): Flow<List<TabEntity>>
+
     @Query("SELECT * FROM tabs WHERE workspace_id = :workspaceId ORDER BY order_index ASC")
     fun observeByWorkspace(workspaceId: String): Flow<List<TabEntity>>
 

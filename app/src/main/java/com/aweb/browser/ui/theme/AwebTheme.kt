@@ -5,29 +5,24 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-/**
- * AWEB design system — dark theme, purple accent.
- * Compact palette for Phase 1; extend in later phases.
- */
-
-private val AwebPurple        = Color(0xFF9C6FFF)
-private val AwebPurpleVariant = Color(0xFF7B52D6)
-private val AwebBackground    = Color(0xFF0F0F0F)
-private val AwebSurface       = Color(0xFF1A1A1A)
-private val AwebOnSurface     = Color(0xFFEAEAEA)
-private val AwebError         = Color(0xFFCF6679)
-
 private val DarkColorScheme = darkColorScheme(
-    primary        = AwebPurple,
-    onPrimary      = Color.Black,
-    secondary      = AwebPurpleVariant,
-    onSecondary    = Color.White,
-    background     = AwebBackground,
-    onBackground   = AwebOnSurface,
-    surface        = AwebSurface,
-    onSurface      = AwebOnSurface,
-    error          = AwebError,
-    onError        = Color.Black,
+    primary        = AwebColors.PrimaryBlue,
+    onPrimary      = Color.White,
+    primaryContainer = AwebColors.NavyElevated,
+    onPrimaryContainer = AwebColors.TextPrimary,
+    secondary      = AwebColors.Teal,
+    onSecondary    = AwebColors.InkDeep,
+    tertiary       = AwebColors.Cyan,
+    onTertiary     = AwebColors.InkDeep,
+    background     = AwebColors.InkDeep,
+    onBackground   = AwebColors.TextPrimary,
+    surface        = AwebColors.Navy,
+    onSurface      = AwebColors.TextPrimary,
+    surfaceVariant = AwebColors.Surface,
+    onSurfaceVariant = AwebColors.TextSecondary,
+    outline        = AwebColors.Stroke,
+    error          = AwebColors.Rose,
+    onError        = Color.White,
 )
 
 @Composable

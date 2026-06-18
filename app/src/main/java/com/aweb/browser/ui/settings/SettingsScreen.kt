@@ -77,6 +77,44 @@ fun SettingsScreen(
 
         HorizontalDivider(color = Color(0xFF1E1E1E))
 
+        // ── 0. Survival + Privacy ─────────────────────────────────────────
+        SectionHeader("Survival & Privacy")
+
+        ToggleRow(
+            icon        = Icons.Filled.Shield,
+            label       = "Foreground survival service",
+            description = "Keep AWEB elevated for HyperOS / Keep Alive tabs",
+            checked     = state.survivalServiceEnabled,
+            onToggle    = { viewModel.setSurvivalServiceEnabled(it) },
+        )
+
+        ToggleRow(
+            icon        = Icons.Filled.Security,
+            label       = "Tracker shield",
+            description = "Gecko anti-tracking protection control",
+            checked     = state.trackerShieldEnabled,
+            onToggle    = { viewModel.setTrackerShieldEnabled(it) },
+        )
+
+        ToggleRow(
+            icon        = Icons.Filled.DensityMedium,
+            label       = "Compact tablet density",
+            description = "Prepare denser controls for tablet command-center mode",
+            checked     = state.compactTabletDensity,
+            onToggle    = { viewModel.setCompactTabletDensity(it) },
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            OutlinedButton(onClick = { viewModel.resetUiPreferences() }) {
+                Icon(Icons.Filled.Restore, null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Reset UI preferences")
+            }
+        }
+
         // ── 1. Memory Mode ────────────────────────────────────────────────
         SectionHeader("Memory Mode")
 
@@ -162,7 +200,7 @@ fun SettingsScreen(
             Icon(
                 Icons.Filled.Shield,
                 null,
-                tint     = Color(0xFF9C6FFF),
+                tint     = Color(0xFF2F8CFF),
                 modifier = Modifier.size(20.dp),
             )
             Spacer(Modifier.width(12.dp))
@@ -238,7 +276,7 @@ private fun MemoryModeSelector(
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         MemoryMode.values().forEach { mode ->
             val isSelected = mode == selected
-            val borderColor = if (isSelected) Color(0xFF9C6FFF) else Color(0xFF2A2A2A)
+            val borderColor = if (isSelected) Color(0xFF2F8CFF) else Color(0xFF2A2A2A)
             val bg = if (isSelected) Color(0xFF1A1228) else Color(0xFF141414)
 
             Row(
@@ -255,7 +293,7 @@ private fun MemoryModeSelector(
                     selected = isSelected,
                     onClick  = { onSelect(mode) },
                     colors   = RadioButtonDefaults.colors(
-                        selectedColor   = Color(0xFF9C6FFF),
+                        selectedColor   = Color(0xFF2F8CFF),
                         unselectedColor = Color(0xFF444444),
                     ),
                 )
@@ -272,11 +310,11 @@ private fun MemoryModeSelector(
                             Spacer(Modifier.width(6.dp))
                             Text(
                                 "Recommended",
-                                color    = Color(0xFF9C6FFF),
+                                color    = Color(0xFF2F8CFF),
                                 fontSize = 10.sp,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(0xFF9C6FFF).copy(alpha = 0.12f))
+                                    .background(Color(0xFF2F8CFF).copy(alpha = 0.12f))
                                     .padding(horizontal = 5.dp, vertical = 2.dp),
                             )
                         }
@@ -340,7 +378,7 @@ private fun StepperRow(
             }
             Text(
                 "$value",
-                color      = Color(0xFF9C6FFF),
+                color      = Color(0xFF2F8CFF),
                 fontSize   = 18.sp,
                 fontWeight = FontWeight.Bold,
                 modifier   = Modifier.widthIn(min = 28.dp),
@@ -384,7 +422,7 @@ private fun MemoryDashboard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Icon(Icons.Filled.Memory, null, tint = Color(0xFF9C6FFF), modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.Memory, null, tint = Color(0xFF2F8CFF), modifier = Modifier.size(18.dp))
             Text(
                 "Live GeckoSessions",
                 color = Color.White,
@@ -394,7 +432,7 @@ private fun MemoryDashboard(
             Spacer(Modifier.weight(1f))
             Text(
                 "$liveSessionCount",
-                color      = Color(0xFF9C6FFF),
+                color      = Color(0xFF2F8CFF),
                 fontSize   = 22.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -410,9 +448,9 @@ private fun MemoryDashboard(
         HorizontalDivider(color = Color(0xFF1E1E1E))
 
         // Policy summary
-        DashRow("Mode",             memoryMode.label,       Color(0xFF9C6FFF))
-        DashRow("Max recent live",  "$maxRecent tabs",      Color(0xFF4FC3F7))
-        DashRow("Max Keep Alive",   "$maxKeepAlive tabs",   Color(0xFFFFB74D))
+        DashRow("Mode",             memoryMode.label,       Color(0xFF2F8CFF))
+        DashRow("Max recent live",  "$maxRecent tabs",      Color(0xFF4DD8FF))
+        DashRow("Max Keep Alive",   "$maxKeepAlive tabs",   Color(0xFFFFC857))
 
         HorizontalDivider(color = Color(0xFF1E1E1E))
 
@@ -425,9 +463,9 @@ private fun MemoryDashboard(
             letterSpacing = 1.sp,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            LegendItem("●", "Active",    Color(0xFF9C6FFF))
-            LegendItem("◆", "Keep Alive", Color(0xFFFFB74D))
-            LegendItem("◐", "Recent",    Color(0xFF4FC3F7))
+            LegendItem("●", "Active",    Color(0xFF2F8CFF))
+            LegendItem("◆", "Keep Alive", Color(0xFFFFC857))
+            LegendItem("◐", "Recent",    Color(0xFF4DD8FF))
             LegendItem("○", "Unloaded",  Color(0xFF444444))
         }
     }
@@ -476,16 +514,16 @@ private fun HomepageRow(homepage: String, onSave: (String) -> Unit) {
                 onValueChange = { draft = it },
                 singleLine    = true,
                 colors        = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor   = Color(0xFF9C6FFF),
+                    focusedBorderColor   = Color(0xFF2F8CFF),
                     unfocusedBorderColor = Color(0xFF333333),
                     focusedTextColor     = Color.White,
                     unfocusedTextColor   = Color.White,
-                    cursorColor          = Color(0xFF9C6FFF),
+                    cursorColor          = Color(0xFF2F8CFF),
                 ),
                 modifier = Modifier.fillMaxWidth(),
                 trailingIcon = {
                     IconButton(onClick = { onSave(draft); editing = false }) {
-                        Icon(Icons.Filled.Check, "Save", tint = Color(0xFF9C6FFF))
+                        Icon(Icons.Filled.Check, "Save", tint = Color(0xFF2F8CFF))
                     }
                 }
             )
@@ -532,7 +570,7 @@ private fun SearchEngineRow(selected: SearchEngine, onSelect: (SearchEngine) -> 
                     onClick  = { onSelect(engine) },
                     label    = { Text(engine.label, fontSize = 12.sp) },
                     colors   = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor    = Color(0xFF9C6FFF),
+                        selectedContainerColor    = Color(0xFF2F8CFF),
                         selectedLabelColor        = Color.Black,
                         containerColor            = Color(0xFF1A1A1A),
                         labelColor                = Color(0xFF888888),
@@ -576,7 +614,7 @@ private fun ToggleRow(
             onCheckedChange = onToggle,
             colors          = SwitchDefaults.colors(
                 checkedThumbColor   = Color.White,
-                checkedTrackColor   = Color(0xFF9C6FFF),
+                checkedTrackColor   = Color(0xFF2F8CFF),
                 uncheckedThumbColor = Color(0xFF888888),
                 uncheckedTrackColor = Color(0xFF2A2A2A),
             ),

@@ -62,9 +62,9 @@ fun MemoryStatusBar(
         }
         Spacer(Modifier.height(4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MemBadge("●", "$active active",    Color(0xFF9C6FFF))
-            if (keepAlive > 0) MemBadge("◆", "$keepAlive alive", Color(0xFFFFB74D))
-            if (recent > 0)    MemBadge("◐", "$recent recent",   Color(0xFF4FC3F7))
+            MemBadge("●", "$active active",    Color(0xFF2F8CFF))
+            if (keepAlive > 0) MemBadge("◆", "$keepAlive alive", Color(0xFFFFC857))
+            if (recent > 0)    MemBadge("◐", "$recent recent",   Color(0xFF4DD8FF))
             MemBadge("○", "$unloaded off",  Color(0xFF444444))
         }
     }

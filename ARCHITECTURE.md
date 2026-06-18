@@ -17,8 +17,8 @@ This is enforced by GeckoView's `contextId`. Each workspace gets a UUID-based `c
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         Compose UI Layer                            │
-│  MainActivity  BrowserScreen  WorkspaceSidebar  TabStrip            │
-│  KeepAlivePanel  SettingsScreen  HyperOsSetupScreen  DiagnosticsScr │
+│  MainActivity/NavHost  HomeScreen  WorkspacesScreen  BrowserScreen  │
+│  TabsManagerScreen  SettingsScreen  SetupGuide  Diagnostics         │
 └───────────────────────────┬─────────────────────────────────────────┘
                             │ StateFlow / events
 ┌───────────────────────────▼─────────────────────────────────────────┐
@@ -252,9 +252,9 @@ Next launch
 | `GeckoSessionWrapper.kt` | Per-tab Gecko session; all delegates; StateFlows |
 | `TabLifecycleManager.kt` | LRU eviction, memory pressure cascade, app restore |
 | `KeepAliveManager.kt` | Keep Alive toggle, cap enforcement, event relay |
-| `BrowserScreen.kt` | Main browser UI composition; all overlays wired |
+| `BrowserScreen.kt` | Real Gecko browser UI composition; all overlays wired |
 | `TabViewModel.kt` | Tab CRUD, workspace switching, session wiring |
-| `WorkspaceViewModel.kt` | Workspace CRUD, settings propagation to lifecycle manager |
+| `WorkspaceViewModel.kt` | Workspace CRUD, all-tab dashboard snapshot, settings propagation |
 | `AwebForegroundService.kt` | Persistent notification; user-respectful survival mode |
 | `ServiceHealthWorker.kt` | WorkManager periodic restart check |
 | `CrashRecoveryManager.kt` | Clean/unclean exit detection; crash banner trigger |

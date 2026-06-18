@@ -81,7 +81,7 @@ fun MemoryDashboardScreen(
             Spacer(Modifier.weight(1f))
             // Refresh button
             IconButton(onClick = { viewModel.refreshLiveSessionCount() }) {
-                Icon(Icons.Filled.Refresh, "Refresh", tint = Color(0xFF9C6FFF))
+                Icon(Icons.Filled.Refresh, "Refresh", tint = Color(0xFF2F8CFF))
             }
         }
 
@@ -104,9 +104,9 @@ fun MemoryDashboardScreen(
             modifier = Modifier.padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            StateBar("● Active",    active,    totalTabs, Color(0xFF9C6FFF))
-            StateBar("◆ Keep Alive", keepAlive, totalTabs, Color(0xFFFFB74D))
-            StateBar("◐ Recent",    recent,    totalTabs, Color(0xFF4FC3F7))
+            StateBar("● Active",    active,    totalTabs, Color(0xFF2F8CFF))
+            StateBar("◆ Keep Alive", keepAlive, totalTabs, Color(0xFFFFC857))
+            StateBar("◐ Recent",    recent,    totalTabs, Color(0xFF4DD8FF))
             StateBar("○ Unloaded",  unloaded,  totalTabs, Color(0xFF444444))
         }
 
@@ -151,9 +151,9 @@ private fun SessionRingChart(liveSessions: Int, totalTabs: Int, modifier: Modifi
     )
 
     val ringColor = when {
-        fraction > 0.7f -> Color(0xFFCF6679)
-        fraction > 0.4f -> Color(0xFFFFB74D)
-        else            -> Color(0xFF9C6FFF)
+        fraction > 0.7f -> Color(0xFFFF5C7A)
+        fraction > 0.4f -> Color(0xFFFFC857)
+        else            -> Color(0xFF2F8CFF)
     }
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
@@ -227,9 +227,9 @@ private fun PolicyGrid(mode: String, maxRecent: Int, maxKa: Int) {
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        PolicyCard("Mode",       mode,         Color(0xFF9C6FFF), Modifier.weight(1f))
-        PolicyCard("Max Recent", "$maxRecent", Color(0xFF4FC3F7), Modifier.weight(1f))
-        PolicyCard("Max KA",     "$maxKa",     Color(0xFFFFB74D), Modifier.weight(1f))
+        PolicyCard("Mode",       mode,         Color(0xFF2F8CFF), Modifier.weight(1f))
+        PolicyCard("Max Recent", "$maxRecent", Color(0xFF4DD8FF), Modifier.weight(1f))
+        PolicyCard("Max KA",     "$maxKa",     Color(0xFFFFC857), Modifier.weight(1f))
     }
 }
 
@@ -263,9 +263,9 @@ private fun PressureSimPanel(viewModel: SettingsViewModel) {
             fontSize = 11.sp,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PressureButton("Mild",     Color(0xFF4FC3F7)) { viewModel.simulatePressure(android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) }
-            PressureButton("Low",      Color(0xFFFFB74D)) { viewModel.simulatePressure(android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) }
-            PressureButton("Critical", Color(0xFFCF6679)) { viewModel.simulatePressure(android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) }
+            PressureButton("Mild",     Color(0xFF4DD8FF)) { viewModel.simulatePressure(android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) }
+            PressureButton("Low",      Color(0xFFFFC857)) { viewModel.simulatePressure(android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) }
+            PressureButton("Critical", Color(0xFFFF5C7A)) { viewModel.simulatePressure(android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) }
             PressureButton("Severe",   Color(0xFFFF5252)) { viewModel.simulatePressure(android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE) }
         }
     }
@@ -304,9 +304,9 @@ private fun TabStateList(tabs: List<TabEntity>) {
                 .thenByDescending { it.lastAccessed }
         ).forEach { tab ->
             val (icon, color) = when {
-                tab.isActive   -> "●" to Color(0xFF9C6FFF)
-                tab.keepAlive  -> "◆" to Color(0xFFFFB74D)
-                tab.lastLifecycleState == "recent"   -> "◐" to Color(0xFF4FC3F7)
+                tab.isActive   -> "●" to Color(0xFF2F8CFF)
+                tab.keepAlive  -> "◆" to Color(0xFFFFC857)
+                tab.lastLifecycleState == "recent"   -> "◐" to Color(0xFF4DD8FF)
                 else           -> "○" to Color(0xFF444444)
             }
             Row(

@@ -1,3 +1,20 @@
+## [v2.6.13] — 2026-06-18
+
+### Redesigned — AWEB command-center UI shell
+
+- Added a professional AWEB design palette with ink/navy backgrounds, blue primary, teal/cyan accents, amber highlights, rose warnings, and dark-mode surfaces.
+- Added shared UI components for dashboard-style pages, stat cards, pills, workspace avatars, action cards, and security lines.
+- Replaced the old root shell with a connected `NavHost` bottom navigation system: Home, Spaces, Browse, Tabs, and Settings.
+- Added a command-center Home dashboard backed by real workspace/tab/setup state.
+- Added a full Spaces manager screen using real workspaces, tab counts, active state, open actions, clear-data flow, and create dialog.
+- Added a Tabs manager screen using real tabs with open, close, pin, Keep Alive, active, HTTPS and workspace indicators.
+- Kept the existing real Gecko browser implementation for Browse instead of replacing it with a disconnected mock screen.
+- Wired secondary routes for HyperOS Setup Guide and Diagnostics through the same navigation graph.
+- Added all-tabs observation for accurate workspace/home tab counts.
+- Added Settings control-center toggles for survival service, tracker shield state, compact tablet density, and reset UI preferences.
+
+---
+
 ## [v2.6.12] — 2026-06-18
 
 ### Documentation refresh

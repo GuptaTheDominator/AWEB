@@ -45,13 +45,13 @@ fun CreateWorkspaceDialog(
                     label         = { Text("Workspace name") },
                     singleLine    = true,
                     colors        = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor   = Color(0xFF9C6FFF),
+                        focusedBorderColor   = Color(0xFF2F8CFF),
                         unfocusedBorderColor = Color(0xFF444444),
-                        focusedLabelColor    = Color(0xFF9C6FFF),
+                        focusedLabelColor    = Color(0xFF2F8CFF),
                         unfocusedLabelColor  = Color(0xFF888888),
                         focusedTextColor     = Color.White,
                         unfocusedTextColor   = Color.White,
-                        cursorColor          = Color(0xFF9C6FFF),
+                        cursorColor          = Color(0xFF2F8CFF),
                     ),
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -89,7 +89,7 @@ fun CreateWorkspaceDialog(
             TextButton(
                 onClick = { if (name.isNotBlank()) onConfirm(name, selectedColor) },
             ) {
-                Text("Create", color = Color(0xFF9C6FFF), fontWeight = FontWeight.Bold)
+                Text("Create", color = Color(0xFF2F8CFF), fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
@@ -122,20 +122,20 @@ fun RenameWorkspaceDialog(
                 label         = { Text("Name") },
                 singleLine    = true,
                 colors        = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor   = Color(0xFF9C6FFF),
+                    focusedBorderColor   = Color(0xFF2F8CFF),
                     unfocusedBorderColor = Color(0xFF444444),
-                    focusedLabelColor    = Color(0xFF9C6FFF),
+                    focusedLabelColor    = Color(0xFF2F8CFF),
                     unfocusedLabelColor  = Color(0xFF888888),
                     focusedTextColor     = Color.White,
                     unfocusedTextColor   = Color.White,
-                    cursorColor          = Color(0xFF9C6FFF),
+                    cursorColor          = Color(0xFF2F8CFF),
                 ),
                 modifier = Modifier.fillMaxWidth(),
             )
         },
         confirmButton = {
             TextButton(onClick = { if (name.isNotBlank()) onConfirm(name) }) {
-                Text("Rename", color = Color(0xFF9C6FFF), fontWeight = FontWeight.Bold)
+                Text("Rename", color = Color(0xFF2F8CFF), fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
@@ -168,7 +168,7 @@ fun DeleteWorkspaceDialog(
         },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text("Delete", color = Color(0xFFCF6679), fontWeight = FontWeight.Bold)
+                Text("Delete", color = Color(0xFFFF5C7A), fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
@@ -201,7 +201,7 @@ fun ClearWorkspaceDataDialog(
         },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text("Clear", color = Color(0xFFFFB74D), fontWeight = FontWeight.Bold)
+                Text("Clear", color = Color(0xFFFFC857), fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

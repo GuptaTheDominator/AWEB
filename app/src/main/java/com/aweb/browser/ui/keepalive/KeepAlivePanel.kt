@@ -86,7 +86,7 @@ fun KeepAlivePanel(
                     )
                     Text(
                         "${keepAliveTabs.size} / $cap slots used",
-                        color    = if (keepAliveTabs.size >= cap) Color(0xFFCF6679)
+                        color    = if (keepAliveTabs.size >= cap) Color(0xFFFF5C7A)
                                    else Color(0xFF888888),
                         fontSize = 11.sp,
                     )
@@ -137,8 +137,8 @@ fun KeepAlivePanel(
 private fun CapProgressBar(used: Int, cap: Int, modifier: Modifier = Modifier) {
     val fraction = if (cap > 0) used.toFloat() / cap else 0f
     val barColor = when {
-        fraction >= 1f -> Color(0xFFCF6679)
-        fraction >= 0.67f -> Color(0xFFFFB74D)
+        fraction >= 1f -> Color(0xFFFF5C7A)
+        fraction >= 0.67f -> Color(0xFFFFC857)
         else -> KeepAliveColor
     }
     Column(modifier = modifier) {

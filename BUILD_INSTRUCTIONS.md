@@ -2,7 +2,7 @@
 
 AWEB is an Android/Kotlin project that builds an **ARM64-only APK** for Redmi Pad SE / Android 10+ devices.
 
-Current source version: `v2.6.12`
+Current source version: `v2.6.13`
 
 Package name: `com.aweb.browser`
 

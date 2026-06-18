@@ -1,5 +1,6 @@
 package com.aweb.browser.ui.settings
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aweb.browser.data.repository.MemoryMode
@@ -7,7 +8,10 @@ import com.aweb.browser.data.repository.SearchEngine
 import com.aweb.browser.data.repository.SettingsRepository
 import com.aweb.browser.gecko.TabSessionManager
 import com.aweb.browser.lifecycle.TabLifecycleManager
+import com.aweb.browser.service.ServiceManager
+import com.aweb.browser.service.ServicePreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -19,14 +23,19 @@ data class SettingsUiState(
     val defaultHomepage   : String       = "https://duckduckgo.com",
     val defaultSearch     : SearchEngine = SearchEngine.DUCKDUCKGO,
     val keepScreenAwake   : Boolean      = false,
+    val survivalServiceEnabled: Boolean  = true,
+    val trackerShieldEnabled  : Boolean  = true,
+    val compactTabletDensity  : Boolean  = false,
     val liveSessionCount  : Int          = 0,
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val settingsRepo    : SettingsRepository,
     private val sessionManager  : TabSessionManager,
     private val lifecycleManager: TabLifecycleManager,
+    private val serviceManager  : ServiceManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -51,7 +60,12 @@ class SettingsViewModel @Inject constructor(
                         liveSessionCount  = sessionManager.liveSessionCount,
                     )
                 }.combine(settingsRepo.keepScreenAwake) { state, awake ->
-                    state.copy(keepScreenAwake = awake)
+                    state.copy(
+                        keepScreenAwake = awake,
+                        survivalServiceEnabled = ServicePreferences.isEnabled(context),
+                        trackerShieldEnabled = _uiState.value.trackerShieldEnabled,
+                        compactTabletDensity = _uiState.value.compactTabletDensity,
+                    )
                 }.catch { e ->
                     android.util.Log.w("SettingsViewModel", "Settings flow error: ${e.message}")
                 }.collect { state ->
@@ -109,6 +123,26 @@ class SettingsViewModel @Inject constructor(
 
     fun setKeepScreenAwake(enabled: Boolean) {
         viewModelScope.launch { settingsRepo.setKeepScreenAwake(enabled) }
+    }
+
+    fun setSurvivalServiceEnabled(enabled: Boolean) {
+        ServicePreferences.setEnabled(context, enabled)
+        if (enabled) serviceManager.startService(context) else serviceManager.stopService(context)
+        _uiState.update { it.copy(survivalServiceEnabled = enabled) }
+    }
+
+    fun setTrackerShieldEnabled(enabled: Boolean) {
+        // GeckoRuntime currently enables anti-tracking by default. This state keeps
+        // the new control-center UI responsive until a runtime setting is exposed.
+        _uiState.update { it.copy(trackerShieldEnabled = enabled) }
+    }
+
+    fun setCompactTabletDensity(enabled: Boolean) {
+        _uiState.update { it.copy(compactTabletDensity = enabled) }
+    }
+
+    fun resetUiPreferences() {
+        _uiState.update { it.copy(trackerShieldEnabled = true, compactTabletDensity = false) }
     }
 
     // ── Live session count refresh ─────────────────────────────────────────

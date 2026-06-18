@@ -54,7 +54,7 @@ private fun MediaPermDialog(
     }
     PermBaseDialog(
         icon        = icon,
-        iconTint    = Color(0xFF4FC3F7),
+        iconTint    = Color(0xFF4DD8FF),
         title       = "Allow $what access?",
         body        = "${req.origin} is requesting access to your $what.",
         allowLabel  = "Allow",
@@ -94,7 +94,7 @@ private fun NotifPermDialog(
 ) {
     PermBaseDialog(
         icon       = Icons.Filled.Notifications,
-        iconTint   = Color(0xFFFFB74D),
+        iconTint   = Color(0xFFFFC857),
         title      = "Allow notifications?",
         body       = "${req.origin} wants to send you notifications.",
         allowLabel = "Allow",
@@ -124,7 +124,7 @@ fun DownloadConfirmDialog(
         textContentColor  = Color(0xFFCCCCCC),
         icon = {
             Icon(Icons.Filled.Download, null,
-                tint = Color(0xFF9C6FFF), modifier = Modifier.size(28.dp))
+                tint = Color(0xFF2F8CFF), modifier = Modifier.size(28.dp))
         },
         title = { Text("Download file?", fontWeight = FontWeight.Bold) },
         text  = {
@@ -140,7 +140,7 @@ fun DownloadConfirmDialog(
         },
         confirmButton = {
             TextButton(onClick = onAllow) {
-                Text("Download", color = Color(0xFF9C6FFF), fontWeight = FontWeight.Bold)
+                Text("Download", color = Color(0xFF2F8CFF), fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

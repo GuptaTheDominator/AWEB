@@ -99,7 +99,7 @@ fun BrowserScreen(
     val isSecure    by (session?.isSecure     ?: emptySecureFlow).collectAsState()
 
     val uaModeLabel = activeTab?.userAgentMode ?: "mobile"
-    val wsColor     = activeWorkspace?.colorHex ?: "#9C6FFF"
+    val wsColor     = activeWorkspace?.colorHex ?: "#2F8CFF"
 
     // ── Feature state ─────────────────────────────────────────────────────
     val isBookmarked  by featureViewModel.isBookmarked.collectAsState()
@@ -333,12 +333,12 @@ fun BrowserScreen(
                         // Session opened but GeckoSession object not yet created — spin briefly
                         Box(Modifier.fillMaxSize().background(Color(0xFF0F0F0F)),
                             contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = Color(0xFF9C6FFF), modifier = Modifier.size(32.dp))
+                            CircularProgressIndicator(color = Color(0xFF2F8CFF), modifier = Modifier.size(32.dp))
                         }
                     }
                 } else {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Color(0xFF9C6FFF))
+                        CircularProgressIndicator(color = Color(0xFF2F8CFF))
                     }
                 }
 
@@ -616,7 +616,7 @@ fun BrowserToolbar(
                 Icon(
                     if (isBookmarked) Icons.Filled.Star else Icons.Filled.StarOutline,
                     "Bookmark",
-                    tint     = if (isBookmarked) Color(0xFFFFB74D) else Color(0xFF888888),
+                    tint     = if (isBookmarked) Color(0xFFFFC857) else Color(0xFF888888),
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -658,7 +658,7 @@ fun BrowserToolbar(
                     )
                     DropdownMenuItem(
                         text = { Text("Bookmarks", color = Color.White) },
-                        leadingIcon = { Icon(Icons.Filled.Bookmark, null, tint = Color(0xFF9C6FFF)) },
+                        leadingIcon = { Icon(Icons.Filled.Bookmark, null, tint = Color(0xFF2F8CFF)) },
                         onClick = { onDismissOverflow(); onShowBookmarks() },
                     )
                 }
@@ -715,4 +715,4 @@ fun GeckoViewComposable(session: GeckoSession, modifier: Modifier = Modifier) {
 
 fun parseWsColor(hex: String): Color = runCatching {
     Color(android.graphics.Color.parseColor(hex))
-}.getOrDefault(Color(0xFF9C6FFF))
+}.getOrDefault(Color(0xFF2F8CFF))

@@ -52,7 +52,7 @@ fun TabOverviewScreen(
 ) {
     val wsColor = runCatching {
         Color(android.graphics.Color.parseColor(workspaceColor))
-    }.getOrDefault(Color(0xFF9C6FFF))
+    }.getOrDefault(Color(0xFF2F8CFF))
 
     val sorted = remember(tabs) {
         tabs.sortedWith(
@@ -72,7 +72,7 @@ fun TabOverviewScreen(
             text = { Text("This will close every tab in this workspace.", color = Color(0xFFBBBBBB)) },
             confirmButton = {
                 TextButton(onClick = { showCloseAllConfirm = false; onCloseAll(); onDismiss() }) {
-                    Text("Close All", color = Color(0xFFCF6679))
+                    Text("Close All", color = Color(0xFFFF5C7A))
                 }
             },
             dismissButton = {
@@ -117,7 +117,7 @@ fun TabOverviewScreen(
                 }
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = { showCloseAllConfirm = true }) {
-                    Text("Close All", color = Color(0xFFCF6679), fontSize = 13.sp)
+                    Text("Close All", color = Color(0xFFFF5C7A), fontSize = 13.sp)
                 }
                 IconButton(onClick = onDismiss) {
                     Icon(Icons.Filled.Close, "Close overview", tint = Color.White)
@@ -211,7 +211,7 @@ private fun TabCard(
                             KeepAliveBadge()
                         }
                         if (tab.isPinned && !tab.keepAlive) {
-                            StateBadge("📌 Pinned", Color(0xFF4FC3F7))
+                            StateBadge("📌 Pinned", Color(0xFF4DD8FF))
                         }
                         if (!tab.keepAlive && !tab.isPinned) {
                             val (label, color) = when (tab.lastLifecycleState) {
@@ -277,7 +277,7 @@ private fun TabCard(
                         color = Color.White,
                     )
                 },
-                leadingIcon = { Icon(Icons.Filled.PushPin, null, tint = Color(0xFF4FC3F7)) },
+                leadingIcon = { Icon(Icons.Filled.PushPin, null, tint = Color(0xFF4DD8FF)) },
                 onClick = { showMenu = false; onPin() },
             )
             DropdownMenuItem(
@@ -297,8 +297,8 @@ private fun TabCard(
             )
             HorizontalDivider(color = Color(0xFF333333))
             DropdownMenuItem(
-                text = { Text("Close tab", color = Color(0xFFCF6679)) },
-                leadingIcon = { Icon(Icons.Filled.Close, null, tint = Color(0xFFCF6679)) },
+                text = { Text("Close tab", color = Color(0xFFFF5C7A)) },
+                leadingIcon = { Icon(Icons.Filled.Close, null, tint = Color(0xFFFF5C7A)) },
                 onClick = { showMenu = false; onClose() },
             )
         }

@@ -51,7 +51,7 @@ fun TabStrip(
 ) {
     val wsColor = runCatching {
         Color(android.graphics.Color.parseColor(workspaceColor))
-    }.getOrDefault(Color(0xFF9C6FFF))
+    }.getOrDefault(Color(0xFF2F8CFF))
 
     val sortedTabs = remember(tabs) {
         tabs.sortedWith(
@@ -219,7 +219,7 @@ private fun TabChip(
                     )
                 },
                 leadingIcon = {
-                    Icon(Icons.Filled.PushPin, null, tint = Color(0xFF4FC3F7))
+                    Icon(Icons.Filled.PushPin, null, tint = Color(0xFF4DD8FF))
                 },
                 onClick = { showMenu = false; onPin() },
             )
@@ -245,9 +245,9 @@ private fun TabChip(
 
             // Close
             DropdownMenuItem(
-                text = { Text("Close tab", color = Color(0xFFCF6679)) },
+                text = { Text("Close tab", color = Color(0xFFFF5C7A)) },
                 leadingIcon = {
-                    Icon(Icons.Filled.Close, null, tint = Color(0xFFCF6679))
+                    Icon(Icons.Filled.Close, null, tint = Color(0xFFFF5C7A))
                 },
                 onClick = { showMenu = false; onClose() },
             )

@@ -21,7 +21,7 @@
 
 | Item | Status |
 |---|---|
-| Current source version | `v2.6.12` |
+| Current source version | `v2.6.13` |
 | Latest published APK | [GitHub Releases](https://github.com/GuptaTheDominator/AWEB/releases/latest) |
 | Target device | Redmi Pad SE / ARM64 Android 10+ |
 | Browser engine | Mozilla GeckoView 132 nightly-omni |
@@ -50,6 +50,14 @@ That means you can keep different Google accounts, WhatsApp Web sessions, dashbo
 - independent cookies, storage, sessions and tabs
 - create, rename, reorder, clear and delete workspaces
 - workspace data clearing uses Gecko session-context clearing
+
+### Command-center navigation
+
+- five primary destinations: Home, Spaces, Browse, Tabs and Settings
+- Home dashboard with workspace, tab, Keep Alive and setup status
+- Spaces manager for isolated profiles
+- Tabs manager for open tabs, pinning, Keep Alive and closing
+- Setup Guide and Diagnostics are connected secondary routes
 
 ### Tablet-first tabs
 

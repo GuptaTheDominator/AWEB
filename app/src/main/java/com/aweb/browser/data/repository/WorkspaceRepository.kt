@@ -97,20 +97,20 @@ class WorkspaceRepository @Inject constructor(
      */
     suspend fun ensureDefaultWorkspace() {
         if (dao.getAll().isEmpty()) {
-            val ws = createWorkspace(name = "Personal", colorHex = "#9C6FFF")
+            val ws = createWorkspace(name = "Personal", colorHex = "#2F8CFF")
             dao.switchActive(ws.id)
         }
     }
 
     companion object {
         val DEFAULT_COLORS = listOf(
-            "#9C6FFF",  // purple  (AWEB brand)
-            "#4FC3F7",  // sky blue
-            "#81C784",  // green
-            "#FFB74D",  // orange
-            "#F06292",  // pink
-            "#4DB6AC",  // teal
-            "#FF8A65",  // deep orange
+            "#2F8CFF",  // AWEB blue
+            "#22C7A9",  // teal
+            "#4DD8FF",  // cyan
+            "#FFC857",  // amber
+            "#FF5C7A",  // rose
+            "#7CB7FF",  // soft blue
+            "#63D471",  // success green
         )
     }
 }

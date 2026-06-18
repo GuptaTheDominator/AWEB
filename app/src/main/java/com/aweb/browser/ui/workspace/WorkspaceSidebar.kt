@@ -66,7 +66,7 @@ fun WorkspaceSidebar(
             ) {
                 Text(
                     text       = "AWEB",
-                    color      = Color(0xFF9C6FFF),
+                    color      = Color(0xFF2F8CFF),
                     fontSize   = 22.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 2.sp,
@@ -75,7 +75,7 @@ fun WorkspaceSidebar(
                 Icon(
                     Icons.Filled.Language,
                     contentDescription = null,
-                    tint   = Color(0xFF9C6FFF),
+                    tint   = Color(0xFF2F8CFF),
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -133,11 +133,11 @@ fun WorkspaceSidebar(
                 Icon(
                     Icons.Filled.Add,
                     contentDescription = "New Workspace",
-                    tint = Color(0xFF9C6FFF),
+                    tint = Color(0xFF2F8CFF),
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(8.dp))
-                Text("New Workspace", color = Color(0xFF9C6FFF), fontSize = 13.sp)
+                Text("New Workspace", color = Color(0xFF2F8CFF), fontSize = 13.sp)
             }
 
             // ── Settings button ────────────────────────────────────────────
@@ -174,8 +174,8 @@ private fun WorkspaceItem(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val wsColor = runCatching {
-        Color(android.graphics.Color.parseColor(workspace.colorHex ?: "#9C6FFF"))
-    }.getOrDefault(Color(0xFF9C6FFF))
+        Color(android.graphics.Color.parseColor(workspace.colorHex ?: "#2F8CFF"))
+    }.getOrDefault(Color(0xFF2F8CFF))
 
     val targetBackground = if (isActive) Color(0xFF2D2D2D) else Color.Transparent
     val targetTextColor  = if (isActive) Color.White else Color(0xFF888888)
@@ -254,14 +254,14 @@ private fun WorkspaceItem(
                 onClick = { showMenu = false; onRename() },
             )
             DropdownMenuItem(
-                text    = { Text("Clear data", color = Color(0xFFFFB74D)) },
-                leadingIcon = { Icon(Icons.Filled.DeleteSweep, null, tint = Color(0xFFFFB74D)) },
+                text    = { Text("Clear data", color = Color(0xFFFFC857)) },
+                leadingIcon = { Icon(Icons.Filled.DeleteSweep, null, tint = Color(0xFFFFC857)) },
                 onClick = { showMenu = false; onClearData() },
             )
             HorizontalDivider(color = Color(0xFF333333))
             DropdownMenuItem(
-                text    = { Text("Delete workspace", color = Color(0xFFCF6679)) },
-                leadingIcon = { Icon(Icons.Filled.Delete, null, tint = Color(0xFFCF6679)) },
+                text    = { Text("Delete workspace", color = Color(0xFFFF5C7A)) },
+                leadingIcon = { Icon(Icons.Filled.Delete, null, tint = Color(0xFFFF5C7A)) },
                 onClick = { showMenu = false; onDelete() },
             )
         }
