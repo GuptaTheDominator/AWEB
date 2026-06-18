@@ -5,6 +5,7 @@ import com.aweb.browser.data.entity.AppSettingEntity
 import com.aweb.browser.data.entity.SettingsKeys
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.net.URLEncoder
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -92,7 +93,7 @@ enum class SearchEngine(val key: String, val label: String, val queryUrl: String
     GOOGLE    ("google", "Google",     "https://www.google.com/search?q="),
     BING      ("bing",   "Bing",       "https://www.bing.com/search?q=");
 
-    fun buildSearchUrl(query: String) = queryUrl + query.trim().replace(" ", "+")
+    fun buildSearchUrl(query: String) = queryUrl + URLEncoder.encode(query.trim(), "UTF-8")
 
     companion object {
         fun fromString(s: String?) = values().find { it.key == s }

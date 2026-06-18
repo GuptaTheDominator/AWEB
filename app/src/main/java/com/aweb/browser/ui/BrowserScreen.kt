@@ -7,6 +7,8 @@ package com.aweb.browser.ui
 
 import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
+import android.os.Build
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -21,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aweb.browser.browser.BrowserPermissionHandler
 import com.aweb.browser.data.entity.WorkspaceEntity
@@ -128,6 +132,8 @@ fun BrowserScreen(
     var showCapDialog      by remember { mutableStateOf(false) }
     var showOverflowMenu   by remember { mutableStateOf(false) }
     var pendingPermRequest by remember { mutableStateOf<BrowserPermissionHandler.PermissionRequest?>(null) }
+    var pendingLocationSystemRequest by remember { mutableStateOf<BrowserPermissionHandler.PermissionRequest.LocationRequest?>(null) }
+    var pendingNotificationSystemRequest by remember { mutableStateOf<BrowserPermissionHandler.PermissionRequest.NotificationRequest?>(null) }
     var toastMessage       by remember { mutableStateOf("") }
     var toastIsEnable      by remember { mutableStateOf(true) }
 
@@ -139,8 +145,30 @@ fun BrowserScreen(
         if (mediaReq != null) {
             val cam = grants[Manifest.permission.CAMERA] ?: false
             val mic = grants[Manifest.permission.RECORD_AUDIO] ?: false
-            featureViewModel.grantMedia(mediaReq, cam || mic)
+            featureViewModel.grantMedia(mediaReq, camGranted = cam, micGranted = mic)
             pendingPermRequest = null
+        }
+    }
+
+    val locationPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val req = pendingLocationSystemRequest
+        if (req != null) {
+            val granted = (grants[Manifest.permission.ACCESS_FINE_LOCATION] == true) ||
+                (grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true)
+            if (granted) pendingPermRequest = req else req.callback.reject()
+            pendingLocationSystemRequest = null
+        }
+    }
+
+    val notificationPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val req = pendingNotificationSystemRequest
+        if (req != null) {
+            if (granted) pendingPermRequest = req else req.callback.reject()
+            pendingNotificationSystemRequest = null
         }
     }
 
@@ -160,6 +188,29 @@ fun BrowserScreen(
                         if (req.hasAudio) add(Manifest.permission.RECORD_AUDIO)
                     }
                     mediaPermLauncher.launch(perms.toTypedArray())
+                }
+                is BrowserPermissionHandler.PermissionRequest.LocationRequest -> {
+                    val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                    val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                    if (fine || coarse) {
+                        pendingPermRequest = req
+                    } else {
+                        pendingLocationSystemRequest = req
+                        locationPermLauncher.launch(arrayOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION,
+                        ))
+                    }
+                }
+                is BrowserPermissionHandler.PermissionRequest.NotificationRequest -> {
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                    ) {
+                        pendingPermRequest = req
+                    } else {
+                        pendingNotificationSystemRequest = req
+                        notificationPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
                 }
                 else -> pendingPermRequest = req
             }
@@ -468,7 +519,7 @@ fun BrowserToolbar(
                     tint = if (canGoBack) Color.White else Color(0xFF444444), modifier = Modifier.size(22.dp))
             }
             IconButton(onClick = onForward, enabled = canGoForward, modifier = Modifier.size(44.dp)) {
-                Icon(Icons.Filled.ArrowForward, "Fwd",
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, "Fwd",
                     tint = if (canGoForward) Color.White else Color(0xFF444444), modifier = Modifier.size(22.dp))
             }
             IconButton(onClick = if (loading) onStop else onReload, modifier = Modifier.size(44.dp)) {
@@ -553,13 +604,13 @@ fun BrowserToolbar(
                     DropdownMenuItem(
                         text = {
                             Text(
-                                if (uaMode == "DESKTOP") "Switch to Mobile" else "Switch to Desktop",
+                                if (uaMode.equals("desktop", ignoreCase = true)) "Switch to Mobile" else "Switch to Desktop",
                                 color = Color.White,
                             )
                         },
                         leadingIcon = {
                             Icon(
-                                if (uaMode == "DESKTOP") Icons.Filled.PhoneAndroid else Icons.Filled.DesktopWindows,
+                                if (uaMode.equals("desktop", ignoreCase = true)) Icons.Filled.PhoneAndroid else Icons.Filled.DesktopWindows,
                                 null, tint = Color.White,
                             )
                         },

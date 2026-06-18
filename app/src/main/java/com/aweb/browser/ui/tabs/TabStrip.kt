@@ -98,7 +98,7 @@ fun TabStrip(
                         onClose          = { onCloseTab(tab) },
                         onPin            = { onPinTab(tab, !tab.isPinned) },
                         onToggleKeepAlive = { onToggleKeepAlive(tab) },
-                        modifier         = Modifier.animateItemPlacement(),
+                        modifier         = Modifier.animateItem(),
                     )
                 }
             }
@@ -191,7 +191,7 @@ private fun TabChip(
             // Close
             Box(
                 modifier = Modifier
-                    .size(16.dp)
+                    .size(32.dp)
                     .clip(CircleShape)
                     .clickable(onClick = onClose),
                 contentAlignment = Alignment.Center,

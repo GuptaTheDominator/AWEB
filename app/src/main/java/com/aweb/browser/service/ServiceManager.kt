@@ -38,8 +38,12 @@ class ServiceManager @Inject constructor() {
         val intent = Intent(context, AwebForegroundService::class.java).apply {
             action = AwebForegroundService.ACTION_STOP_SERVICE
         }
-        context.startService(intent)
-        Log.i(TAG, "Stop signal sent to foreground service")
+        try {
+            context.startService(intent)
+            Log.i(TAG, "Stop signal sent to foreground service")
+        } catch (e: Exception) {
+            Log.w(TAG, "Stop service failed: ${e.message}")
+        }
     }
 
     fun requestNotificationUpdate(context: Context) {

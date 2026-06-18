@@ -71,11 +71,7 @@ class ServiceHealthWorker @AssistedInject constructor(
             action = AwebForegroundService.ACTION_UPDATE_NOTIF
         }
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                applicationContext.startForegroundService(updateIntent)
-            } else {
-                applicationContext.startService(updateIntent)
-            }
+            applicationContext.startService(updateIntent)
         } catch (e: Exception) {
             Log.w(TAG, "Could not send update intent: ${e.message}")
         }

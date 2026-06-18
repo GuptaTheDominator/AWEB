@@ -21,25 +21,54 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Create Keystore
+      - name: Validate version matches tag
         run: |
-          keytool -genkeypair -v -keystore release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias release -storepass password -keypass password -dname "CN=AWEB, OU=Arena, O=Arena, L=SF, S=CA, C=US"
-          echo "storeFile=../release.jks" > keystore.properties
-          echo "storePassword=password" >> keystore.properties
-          echo "keyAlias=release" >> keystore.properties
-          echo "keyPassword=password" >> keystore.properties
+          TAG="${GITHUB_REF_NAME#v}"
+          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "Tag v$TAG does not match app versionName $VERSION" >&2
+            exit 1
+          fi
+
+      - name: Restore release keystore
+        env:
+          AWEB_KEYSTORE_BASE64: ${{ secrets.AWEB_KEYSTORE_BASE64 }}
+          AWEB_KEYSTORE_PASSWORD: ${{ secrets.AWEB_KEYSTORE_PASSWORD }}
+          AWEB_KEY_ALIAS: ${{ secrets.AWEB_KEY_ALIAS }}
+          AWEB_KEY_PASSWORD: ${{ secrets.AWEB_KEY_PASSWORD }}
+        run: |
+          test -n "$AWEB_KEYSTORE_BASE64"
+          test -n "$AWEB_KEYSTORE_PASSWORD"
+          test -n "$AWEB_KEY_ALIAS"
+          test -n "$AWEB_KEY_PASSWORD"
+          echo "$AWEB_KEYSTORE_BASE64" | base64 --decode > release.jks
+          cat > keystore.properties <<EOF
+          storeFile=../release.jks
+          storePassword=$AWEB_KEYSTORE_PASSWORD
+          keyAlias=$AWEB_KEY_ALIAS
+          keyPassword=$AWEB_KEY_PASSWORD
+          EOF
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build with Gradle
+      - name: Run unit tests
+        run: ./gradlew testReleaseUnitTest --stacktrace --no-daemon
+
+      - name: Build release APK
         run: ./gradlew assembleRelease --stacktrace --no-daemon
+
+      - name: Generate SHA-256
+        run: |
+          cd app/build/outputs/apk/release
+          sha256sum *.apk > AWEB-${GITHUB_REF_NAME}-arm64.apk.sha256
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/release/*.sha256
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

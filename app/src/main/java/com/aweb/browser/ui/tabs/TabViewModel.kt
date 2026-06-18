@@ -328,9 +328,7 @@ class TabViewModel @Inject constructor(
                 var hasSeenLoading = false
                 // Note: distinctUntilChanged on StateFlow is a no-op (StateFlow already
                 // deduplicates); we track state manually with hasSeenLoading instead.
-                session.loading
-                    .catch { e -> Log.w(TAG, "loading flow: ${e.message}") }
-                    .collect { isLoading ->
+                session.loading.collect { isLoading ->
                         if (isLoading) {
                             hasSeenLoading = true
                         } else if (hasSeenLoading) {

@@ -150,14 +150,18 @@ class KeepAliveManager @Inject constructor(
      */
     fun enforceCap(allTabs: List<TabEntity>, newCap: Int) {
         scope.launch {
+            val activeTabId = allTabs.firstOrNull { it.isActive }?.id
             val keepAliveTabs = allTabs
-                .filter { it.keepAlive }
+                .filter { it.keepAlive && it.id != activeTabId }
                 .sortedBy { it.lastAccessed }   // oldest first to remove
-            val excess = keepAliveTabs.drop(newCap)
+            val protectedActiveSlot = if (allTabs.any { it.id == activeTabId && it.keepAlive }) 1 else 0
+            val removableSlots = (newCap - protectedActiveSlot).coerceAtLeast(0)
+            val excess = keepAliveTabs.drop(removableSlots)
             excess.forEach { tab ->
                 tabRepo.setKeepAlive(tab.id, false)
-                tabRepo.updateLifecycleState(tab.id, TabLifecycleState.RECENT.dbKey)
-                Log.i(TAG, "Cap enforcement: removed Keep Alive from '${tab.title}'")
+                tabRepo.updateLifecycleState(tab.id, TabLifecycleState.UNLOADED.dbKey)
+                sessionManager.unload(tab.id)
+                Log.i(TAG, "Cap enforcement: removed Keep Alive and unloaded '${tab.title}'")
             }
         }
     }

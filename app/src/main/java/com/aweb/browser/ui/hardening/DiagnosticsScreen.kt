@@ -103,12 +103,7 @@ fun DiagnosticsScreen(
             // Isolation check
             Button(
                 onClick = {
-                    val wsIds = tabs.map { it.workspaceId }.toSet()
-                    val ctxIds = wsIds.size
-                    isolationResult = if (ctxIds == AppState.currentTabs
-                            .groupBy { it.workspaceId }.keys.size)
-                        "✓ Each workspace has a unique contextId (${ctxIds} total)"
-                    else "✗ Isolation mismatch detected"
+                    viewModel.runIsolationCheck { isolationResult = it }
                 },
                 colors  = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A2A1A)),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),

@@ -52,7 +52,15 @@ class TabLifecycleManager @Inject constructor(
         private set
 
     fun applyMemoryMode(key: String, maxKeepAlive: Int) {
-        policy = MemoryPolicy.fromKey(key, maxKeepAlive)
+        applyMemoryMode(key, maxRecentLive = null, maxKeepAlive = maxKeepAlive)
+    }
+
+    fun applyMemoryMode(key: String, maxRecentLive: Int?, maxKeepAlive: Int) {
+        policy = MemoryPolicy.fromKey(
+            key = key,
+            maxKeepAlive = maxKeepAlive,
+            maxRecentLive = maxRecentLive,
+        )
         Log.i(TAG, "Memory policy updated: $policy")
     }
 
@@ -76,13 +84,13 @@ class TabLifecycleManager @Inject constructor(
             Log.d(TAG, "Tab selected: '${newActiveTab.title}'")
 
             // 1. Promote new active — ensure session is live and Gecko-active
-            val activeSession = sessionManager.getOrCreate(newActiveTab, workspace)
-            activeSession.session?.setActive(true)
+            sessionManager.getOrCreate(newActiveTab, workspace)
+            sessionManager.setActive(newActiveTab.id, true)
             persistState(newActiveTab.id, TabLifecycleState.ACTIVE)
 
             // 2. Demote previous active → RECENT (session stays open, just paused)
             if (previousActiveTab != null && previousActiveTab.id != newActiveTab.id) {
-                sessionManager.get(previousActiveTab.id)?.session?.setActive(false)
+                sessionManager.setActive(previousActiveTab.id, false)
                 persistState(previousActiveTab.id, TabLifecycleState.RECENT)
             }
 
@@ -190,8 +198,8 @@ class TabLifecycleManager @Inject constructor(
                 .take(policy.maxKeepAlive)
 
             activeTab?.let {
-                val session = sessionManager.getOrCreate(it, workspace)
-                session.session?.setActive(true)
+                sessionManager.getOrCreate(it, workspace)
+                sessionManager.setActive(it.id, true)
                 persistState(it.id, TabLifecycleState.ACTIVE)
                 Log.d(TAG, "Restored active tab: '${it.title}'")
             }
@@ -262,12 +270,12 @@ class TabLifecycleManager @Inject constructor(
 
         // Apply state transitions
         keepAlive.forEach { tab ->
-            sessionManager.get(tab.id)?.session?.setActive(false)
+            sessionManager.setActive(tab.id, false)
             persistState(tab.id, TabLifecycleState.KEEP_ALIVE)
         }
 
         recentToKeep.forEach { tab ->
-            sessionManager.get(tab.id)?.session?.setActive(false)
+            sessionManager.setActive(tab.id, false)
             persistState(tab.id, TabLifecycleState.RECENT)
         }
 

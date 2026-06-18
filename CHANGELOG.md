@@ -1,3 +1,24 @@
+## [v2.6.5] — 2026-06-17
+
+### Fixed — Phase 1/2 audit issues
+
+- Wired Gecko sessions to download, permission, and file-upload handlers.
+- Added Gecko file prompt handling for `<input type="file">`.
+- Added external `ACTION_VIEW` URL handling for default-browser launches.
+- Main-confined Gecko session active/close operations and cancelled wrapper scopes on close.
+- Added per-workspace Gecko session-context data clearing via `StorageController.clearDataForSessionContext`.
+- Installed crash recovery uncaught-exception persistence.
+- Applied custom recent-live tab limits to the actual memory policy.
+- Enforced Keep Alive cap changes by removing flags and unloading excess sessions.
+- Fixed media/location/notification runtime permission flow.
+- Hardened popup/new-window handling.
+- Replaced destructive Room fallback with explicit 1→2 and 2→3 migrations.
+- Fixed search query URL encoding.
+- Added source-side release workflow support for stable secret-backed signing.
+- Added Close All confirmation and several UI correctness fixes.
+
+---
+
 ## [v2.6.4] — 2026-06-17
 
 ### Fixed — release build compilation

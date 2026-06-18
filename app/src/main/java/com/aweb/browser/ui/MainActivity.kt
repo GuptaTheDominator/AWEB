@@ -1,5 +1,10 @@
 package com.aweb.browser.ui
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -28,6 +33,7 @@ import com.aweb.browser.ui.tabs.TabViewModel
 import com.aweb.browser.ui.theme.AwebTheme
 import com.aweb.browser.ui.workspace.*
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.MutableStateFlow
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -36,20 +42,65 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var tabSessionManager: TabSessionManager
     @Inject lateinit var serviceManager   : ServiceManager
 
+    private val externalUrl = MutableStateFlow<String?>(null)
+    private var keepAwakePreference = false
+    private var isCharging = false
+
+    private val chargingReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+            isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                status == BatteryManager.BATTERY_STATUS_FULL
+            updateKeepScreenAwakeFlag()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        registerReceiver(chargingReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        handleExternalUrlIntent(intent)
         setContent {
+            val pendingExternalUrl by externalUrl.collectAsState()
             AwebTheme {
                 AwebRootLayout(
                     tabSessionManager = tabSessionManager,
                     serviceManager    = serviceManager,
+                    externalUrl       = pendingExternalUrl,
+                    onExternalUrlConsumed = { externalUrl.value = null },
                     onKeepScreenAwake = { keep ->
-                        if (keep) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                        else      window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        keepAwakePreference = keep
+                        updateKeepScreenAwakeFlag()
                     },
                 )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleExternalUrlIntent(intent)
+    }
+
+    override fun onDestroy() {
+        runCatching { unregisterReceiver(chargingReceiver) }
+        super.onDestroy()
+    }
+
+    private fun handleExternalUrlIntent(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        val url = intent.dataString?.takeIf {
+            it.startsWith("http://") || it.startsWith("https://")
+        } ?: return
+        externalUrl.value = url
+    }
+
+    private fun updateKeepScreenAwakeFlag() {
+        if (keepAwakePreference && isCharging) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
 }
@@ -58,6 +109,8 @@ class MainActivity : ComponentActivity() {
 fun AwebRootLayout(
     tabSessionManager : TabSessionManager,
     serviceManager    : ServiceManager,
+    externalUrl       : String? = null,
+    onExternalUrlConsumed: () -> Unit = {},
     onKeepScreenAwake : (Boolean) -> Unit,
 ) {
     val wsViewModel       : WorkspaceViewModel = hiltViewModel()
@@ -72,7 +125,7 @@ fun AwebRootLayout(
     val setupDone      by setupViewModel.setupDone.collectAsState()
     val hardeningState by hardeningViewModel.uiState.collectAsState()
 
-    // Keep screen awake flag
+    // Keep screen awake flag. MainActivity applies it only while charging.
     LaunchedEffect(settingsState.keepScreenAwake) {
         onKeepScreenAwake(settingsState.keepScreenAwake)
     }
@@ -80,6 +133,15 @@ fun AwebRootLayout(
     // Sync TabViewModel with active workspace
     LaunchedEffect(wsState.activeWorkspace) {
         wsState.activeWorkspace?.let { tabViewModel.setWorkspace(it) }
+    }
+
+    // Open URLs sent by Android ACTION_VIEW intents once a workspace is ready.
+    LaunchedEffect(externalUrl, wsState.activeWorkspace?.id) {
+        val url = externalUrl
+        if (url != null && wsState.activeWorkspace != null) {
+            tabViewModel.openNewTab(url)
+            onExternalUrlConsumed()
+        }
     }
 
     // Update foreground service notification when tabs change
@@ -128,11 +190,13 @@ fun AwebRootLayout(
                             (fadeIn() + scaleIn(initialScale = 0.98f)).togetherWith(fadeOut())
                         },
                         label = "workspaceSwitch"
-                    ) { _ ->
-                        BrowserScreen(
-                            tabViewModel    = tabViewModel,
-                            activeWorkspace = wsState.activeWorkspace,
-                        )
+                    ) { targetWorkspaceId ->
+                        key(targetWorkspaceId) {
+                            BrowserScreen(
+                                tabViewModel    = tabViewModel,
+                                activeWorkspace = wsState.activeWorkspace,
+                            )
+                        }
                     }
                 }
             }

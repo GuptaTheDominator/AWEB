@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.*
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
@@ -264,7 +265,7 @@ private fun SetupStepCard(
                             ),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                         ) {
-                            Icon(Icons.Filled.OpenInNew, null, modifier = Modifier.size(14.dp))
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, null, modifier = Modifier.size(14.dp))
                             Spacer(Modifier.width(4.dp))
                             Text("Open Settings", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }

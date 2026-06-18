@@ -18,10 +18,20 @@ data class MemoryPolicy(
         val BALANCED     = MemoryPolicy(maxRecentLive = 2, maxKeepAlive = 3)
         val PERFORMANCE  = MemoryPolicy(maxRecentLive = 5, maxKeepAlive = 5)
 
-        fun fromKey(key: String, maxKeepAlive: Int = 3) = when (key) {
-            "conservative" -> CONSERVATIVE.copy(maxKeepAlive = maxKeepAlive)
-            "performance"  -> PERFORMANCE.copy(maxKeepAlive = maxKeepAlive)
-            else           -> BALANCED.copy(maxKeepAlive = maxKeepAlive)
+        fun fromKey(
+            key: String,
+            maxKeepAlive: Int = 3,
+            maxRecentLive: Int? = null,
+        ): MemoryPolicy {
+            val preset = when (key) {
+                "conservative" -> CONSERVATIVE
+                "performance"  -> PERFORMANCE
+                else           -> BALANCED
+            }
+            return preset.copy(
+                maxRecentLive = maxRecentLive ?: preset.maxRecentLive,
+                maxKeepAlive = maxKeepAlive,
+            )
         }
     }
 }

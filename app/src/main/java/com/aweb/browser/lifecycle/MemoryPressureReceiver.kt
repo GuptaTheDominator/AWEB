@@ -38,6 +38,7 @@ class MemoryPressureReceiver(
 
     override fun onConfigurationChanged(newConfig: Configuration) { /* no-op */ }
 
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun onLowMemory() {
         Log.w(TAG, "onLowMemory — treating as TRIM_MEMORY_COMPLETE")
         val workspace = workspaceSnapshot() ?: return

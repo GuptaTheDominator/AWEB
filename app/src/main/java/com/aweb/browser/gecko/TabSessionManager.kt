@@ -2,6 +2,9 @@ package com.aweb.browser.gecko
 
 import android.content.Context
 import android.util.Log
+import com.aweb.browser.browser.BrowserPermissionHandler
+import com.aweb.browser.browser.DownloadHandler
+import com.aweb.browser.browser.FileUploadHandler
 import com.aweb.browser.browser.UserAgentManager
 import com.aweb.browser.data.entity.TabEntity
 import com.aweb.browser.data.entity.WorkspaceEntity
@@ -18,6 +21,9 @@ import javax.inject.Singleton
 @Singleton
 class TabSessionManager @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val downloadHandler : DownloadHandler,
+    private val permissionHandler: BrowserPermissionHandler,
+    private val fileUploadHandler: FileUploadHandler,
 ) {
     companion object { private const val TAG = "TabSessionMgr" }
 
@@ -33,9 +39,12 @@ class TabSessionManager @Inject constructor(
         Log.i(TAG, "Creating wrapper tab=${tab.id} ws=${workspace.name}")
         val uaMode = if (tab.userAgentMode == "desktop") UserAgentManager.UaMode.DESKTOP else UserAgentManager.UaMode.MOBILE
         val w = GeckoSessionWrapper(
-            contextId = workspace.contextId, 
+            contextId = workspace.contextId,
+            downloadHandler = downloadHandler,
+            permissionHandler = permissionHandler,
+            fileUploadHandler = fileUploadHandler,
             appContext = context,
-            initialUaMode = uaMode
+            initialUaMode = uaMode,
         )
         // FIX (Bug 12): treat about:* and blank urls as "open empty session"
         val url = tab.url.takeIf { it.isNotBlank() && !it.startsWith("about:") }
@@ -57,9 +66,14 @@ class TabSessionManager @Inject constructor(
             allTabIds.mapNotNull { id -> sessions[id]?.let { id to it } }
         }
         snapshot.forEach { (id, wrapper) ->
-            try { wrapper.session?.setActive(id == activeTabId) }
+            try { wrapper.setActive(id == activeTabId) }
             catch (e: Exception) { Log.w(TAG, "setActive $id: ${e.message}") }
         }
+    }
+
+    fun setActive(tabId: String, active: Boolean) {
+        val w = synchronized(lock) { sessions[tabId] }
+        try { w?.setActive(active) } catch (e: Exception) { Log.w(TAG, "setActive: ${e.message}") }
     }
 
     fun unload(tabId: String) {

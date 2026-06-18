@@ -1,17 +1,21 @@
 package com.aweb.browser.ui.workspace
 
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aweb.browser.AppState
 import com.aweb.browser.data.entity.WorkspaceEntity
 import com.aweb.browser.data.repository.SettingsRepository
+import com.aweb.browser.data.repository.TabRepository
 import com.aweb.browser.data.repository.WorkspaceRepository
+import com.aweb.browser.gecko.GeckoRuntimeManager
 import com.aweb.browser.gecko.TabSessionManager
 import com.aweb.browser.gecko.WorkspaceSessionManager
 import com.aweb.browser.lifecycle.TabLifecycleManager
 import com.aweb.browser.ui.keepalive.KeepAliveManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -29,7 +33,9 @@ data class WorkspaceUiState(
 
 @HiltViewModel
 class WorkspaceViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val repo                  : WorkspaceRepository,
+    private val tabRepo               : TabRepository,
     private val settingsRepo          : SettingsRepository,
     private val lifecycleManager      : TabLifecycleManager,
     private val keepAliveManager      : KeepAliveManager,
@@ -76,13 +82,14 @@ class WorkspaceViewModel @Inject constructor(
             try {
                 combine(
                     settingsRepo.memoryMode,
+                    settingsRepo.maxRecentLiveTabs,
                     settingsRepo.maxKeepAliveTabs,
-                ) { mode, maxKa -> mode to maxKa }
+                ) { mode, maxRecent, maxKa -> Triple(mode, maxRecent, maxKa) }
                     .distinctUntilChanged()
                     .catch { e -> Log.w(TAG, "Settings flow error: ${e.message}") }
-                    .collect { (mode, maxKa) ->
+                    .collect { (mode, maxRecent, maxKa) ->
                         try {
-                            lifecycleManager.applyMemoryMode(mode.key, maxKa)
+                            lifecycleManager.applyMemoryMode(mode.key, maxRecent, maxKa)
                             keepAliveManager.enforceCap(AppState.currentTabs, maxKa)
                         } catch (e: Exception) {
                             Log.w(TAG, "applyMemoryMode: ${e.message}")
@@ -134,6 +141,11 @@ class WorkspaceViewModel @Inject constructor(
     fun deleteWorkspace(ws: WorkspaceEntity) {
         viewModelScope.launch {
             try {
+                val tabIds = tabRepo.getTabsForWorkspace(ws.id).map { it.id }
+                tabSessionManager.closeAllForWorkspace(tabIds)
+                workspaceSessionManager.closeAndRemove(ws.id)
+                GeckoRuntimeManager.clearSessionContextData(context, ws.contextId)
+
                 repo.deleteWorkspace(ws.id)
                 _uiState.update { it.copy(showDeleteDialog = null) }
                 val remaining = repo.getAll()
@@ -148,15 +160,11 @@ class WorkspaceViewModel @Inject constructor(
     fun clearWorkspaceData(ws: WorkspaceEntity) {
         viewModelScope.launch {
             try {
-                // 1. Close all tab sessions for this workspace
-                val tabs = tabSessionManager.run {
-                    // Collect all tab IDs to close via the public API
-                    AppState.currentTabs.filter { it.workspaceId == ws.id }.map { it.id }
-                }
-                tabSessionManager.closeAllForWorkspace(tabs)
-                // 2. Close the workspace-level session (cookie jar)
+                val tabIds = tabRepo.getTabsForWorkspace(ws.id).map { it.id }
+                tabSessionManager.closeAllForWorkspace(tabIds)
                 workspaceSessionManager.closeAndRemove(ws.id)
-                Log.i(TAG, "Cleared session data for workspace '${ws.name}'")
+                GeckoRuntimeManager.clearSessionContextData(context, ws.contextId)
+                Log.i(TAG, "Cleared Gecko session data for workspace '${ws.name}'")
             } catch (e: Exception) {
                 Log.e(TAG, "clearWorkspaceData: ${e.message}")
             }

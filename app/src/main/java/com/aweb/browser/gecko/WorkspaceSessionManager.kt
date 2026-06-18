@@ -44,11 +44,11 @@ class WorkspaceSessionManager @Inject constructor(
 
     fun pauseAllExcept(activeId: String) {
         synchronized(lock) { sessions.filter { it.key != activeId }.values.toList() }
-            .forEach { try { it.session?.setActive(false) } catch (_: Exception) {} }
+            .forEach { try { it.setActive(false) } catch (_: Exception) {} }
     }
 
     fun resume(wsId: String) {
-        try { synchronized(lock) { sessions[wsId] }?.session?.setActive(true) } catch (_: Exception) {}
+        try { synchronized(lock) { sessions[wsId] }?.setActive(true) } catch (_: Exception) {}
     }
 
     fun closeAndRemove(wsId: String) {

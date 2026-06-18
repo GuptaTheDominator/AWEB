@@ -10,6 +10,7 @@ import android.os.Process
 import android.util.Log
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.aweb.browser.crash.CrashRecoveryManager
 import com.aweb.browser.gecko.GeckoRuntimeManager
 import com.aweb.browser.lifecycle.MemoryPressureReceiver
 import com.aweb.browser.lifecycle.TabLifecycleManager
@@ -25,6 +26,7 @@ class AwebApplication : Application(), Configuration.Provider {
     @Inject lateinit var lifecycleManager: TabLifecycleManager
     @Inject lateinit var serviceManager: ServiceManager
     @Inject lateinit var workerFactory: HiltWorkerFactory
+    @Inject lateinit var crashRecoveryManager: CrashRecoveryManager
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -62,6 +64,8 @@ class AwebApplication : Application(), Configuration.Provider {
 
         Log.i("AwebApp", "Main process init starting")
         installExceptionLogger()
+        try { crashRecoveryManager.install() }
+        catch (e: Exception) { Log.w("AwebApp", "Crash recovery install failed: ${e.message}") }
         createNotificationChannel()
 
         // Start foreground service IMMEDIATELY so oom_score_adj is elevated

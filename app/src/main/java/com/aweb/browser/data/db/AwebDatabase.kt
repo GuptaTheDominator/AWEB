@@ -8,9 +8,8 @@ import com.aweb.browser.data.entity.TabEntity
 import com.aweb.browser.data.entity.WorkspaceEntity
 
 /**
- * Room database — version 2 adds [BookmarkEntity].
- * fallbackToDestructiveMigration() is in [DatabaseModule] for dev builds.
- * Replace with a proper migration before signing the final APK.
+ * Room database — version 3 adds [BookmarkEntity] and per-tab user-agent mode.
+ * Production migrations are registered in [DatabaseModule].
  */
 @Database(
     entities     = [

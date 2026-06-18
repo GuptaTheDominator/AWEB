@@ -63,6 +63,24 @@ fun TabOverviewScreen(
     }
 
     val keepAliveCount = tabs.count { it.keepAlive }
+    var showCloseAllConfirm by remember { mutableStateOf(false) }
+
+    if (showCloseAllConfirm) {
+        AlertDialog(
+            onDismissRequest = { showCloseAllConfirm = false },
+            title = { Text("Close all tabs?", color = Color.White) },
+            text = { Text("This will close every tab in this workspace.", color = Color(0xFFBBBBBB)) },
+            confirmButton = {
+                TextButton(onClick = { showCloseAllConfirm = false; onCloseAll(); onDismiss() }) {
+                    Text("Close All", color = Color(0xFFCF6679))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCloseAllConfirm = false }) { Text("Cancel") }
+            },
+            containerColor = Color(0xFF1E1E1E),
+        )
+    }
 
     Surface(color = Color(0xFF0F0F0F), modifier = modifier.fillMaxSize()) {
         Column {
@@ -98,7 +116,7 @@ fun TabOverviewScreen(
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = onCloseAll) {
+                TextButton(onClick = { showCloseAllConfirm = true }) {
                     Text("Close All", color = Color(0xFFCF6679), fontSize = 13.sp)
                 }
                 IconButton(onClick = onDismiss) {

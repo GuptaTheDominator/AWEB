@@ -96,18 +96,21 @@ class BrowserFeatureViewModel @Inject constructor(
         permHandler.requests
 
     fun grantMedia(
-        req           : BrowserPermissionHandler.PermissionRequest.MediaRequest,
-        hasAndroidPerm: Boolean,
+        req       : BrowserPermissionHandler.PermissionRequest.MediaRequest,
+        camGranted: Boolean,
+        micGranted: Boolean,
     ) {
         // GeckoView 132: MediaCallback.grant(videoDeviceId: String?, audioDeviceId: String?)
-        if (hasAndroidPerm) {
-            req.callback.grant(
-                if (req.hasVideo) "" else null,   // empty string = first available device
-                if (req.hasAudio) "" else null,
-            )
-        } else {
+        val missingVideo = req.hasVideo && !camGranted
+        val missingAudio = req.hasAudio && !micGranted
+        if (missingVideo || missingAudio) {
             req.callback.reject()
+            return
         }
+        req.callback.grant(
+            if (req.hasVideo) "" else null,   // empty string = first available device
+            if (req.hasAudio) "" else null,
+        )
     }
 
     fun denyMedia(req: BrowserPermissionHandler.PermissionRequest.MediaRequest) {

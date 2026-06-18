@@ -10,6 +10,7 @@ import com.aweb.browser.browser.FileUploadHandler
 import com.aweb.browser.browser.UserAgentManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,12 +20,11 @@ import org.mozilla.geckoview.*
 import org.mozilla.geckoview.GeckoSession.*
 
 /**
- * Enhanced GeckoSessionWrapper.
- * 
- * Fixes:
- *  - Bug 3: Exposes session as StateFlow for UI attachment.
- *  - Bug 6: Pending URL queue for early navigations.
- *  - Bug 7: Observes GeckoRuntimeManager.isReady instead of timers.
+ * Main-thread-safe wrapper around a GeckoSession.
+ *
+ * The wrapper owns one GeckoSession at a time. Closing a wrapper is permanent;
+ * LRU unloads remove it from TabSessionManager and a fresh wrapper is created
+ * if the tab is selected again.
  */
 class GeckoSessionWrapper(
     private val contextId: String? = null,
@@ -41,7 +41,9 @@ class GeckoSessionWrapper(
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val scopeJob: Job = SupervisorJob()
+    private val scope = CoroutineScope(scopeJob + Dispatchers.Main.immediate)
+    @Volatile private var isDestroyed = false
 
     // ── StateFlows ────────────────────────────────────────────────────────
     private val _url          = MutableStateFlow(""); val url: StateFlow<String> get() = _url
@@ -52,7 +54,7 @@ class GeckoSessionWrapper(
     private val _canGoForward = MutableStateFlow(false); val canGoForward: StateFlow<Boolean> get() = _canGoForward
     private val _isSecure     = MutableStateFlow(false); val isSecure: StateFlow<Boolean> get() = _isSecure
 
-    @Volatile private var _sessionState = MutableStateFlow<GeckoSession?>(null)
+    private val _sessionState = MutableStateFlow<GeckoSession?>(null)
     val sessionFlow: StateFlow<GeckoSession?> = _sessionState.asStateFlow()
 
     /** The GeckoSession, or null if not yet opened. */
@@ -64,17 +66,15 @@ class GeckoSessionWrapper(
     private var _pendingUrl: String? = null
 
     init {
-        // Observe runtime readiness to auto-open
         scope.launch {
             GeckoRuntimeManager.isReady.collect { ready ->
-                if (ready) {
-                    mainHandler.post { open() }
-                }
+                if (ready) open()
             }
         }
     }
 
     fun open() {
+        if (isDestroyed) return
         if (_sessionState.value?.isOpen == true) return
 
         if (Looper.myLooper() != Looper.getMainLooper()) {
@@ -88,7 +88,6 @@ class GeckoSessionWrapper(
         try {
             val ctx = appContext ?: run {
                 Log.w(TAG, "open() called with null appContext")
-                _openInFlight = false
                 return
             }
 
@@ -97,7 +96,6 @@ class GeckoSessionWrapper(
             }
 
             val sess = _sessionState.value ?: return
-
             if (sess.isOpen) return
 
             val rt = GeckoRuntimeManager.getOrInit(ctx)
@@ -109,7 +107,6 @@ class GeckoSessionWrapper(
             sess.open(rt)
             Log.d(TAG, "Session opened contextId=$contextId")
 
-            // Process pending URL if any
             _pendingUrl?.let {
                 Log.i(TAG, "Processing pending URL: $it")
                 sess.loadUri(it)
@@ -123,6 +120,16 @@ class GeckoSessionWrapper(
     }
 
     fun close() {
+        isDestroyed = true
+        scopeJob.cancel()
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { closeSessionOnMain() }
+            return
+        }
+        closeSessionOnMain()
+    }
+
+    private fun closeSessionOnMain() {
         try {
             _sessionState.value?.let { if (it.isOpen) it.close() }
             _sessionState.value = null
@@ -132,7 +139,17 @@ class GeckoSessionWrapper(
         }
     }
 
+    fun setActive(active: Boolean) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { setActive(active) }
+            return
+        }
+        try { session?.setActive(active) }
+        catch (e: Exception) { Log.w(TAG, "setActive($active): ${e.message}") }
+    }
+
     fun loadUrl(url: String) {
+        if (isDestroyed) return
         if (Looper.myLooper() != Looper.getMainLooper()) {
             mainHandler.post { loadUrl(url) }
             return
@@ -161,15 +178,19 @@ class GeckoSessionWrapper(
             val sb = GeckoSessionSettings.Builder()
                 .usePrivateMode(false)
                 .allowJavascript(true)
-                .userAgentMode(if (initialUaMode == UserAgentManager.UaMode.DESKTOP) 
-                    GeckoSessionSettings.USER_AGENT_MODE_DESKTOP 
+                .userAgentMode(if (initialUaMode == UserAgentManager.UaMode.DESKTOP)
+                    GeckoSessionSettings.USER_AGENT_MODE_DESKTOP
                     else GeckoSessionSettings.USER_AGENT_MODE_MOBILE)
-            
+
             if (contextId != null) sb.contextId(contextId)
             val s = GeckoSession(sb.build())
             s.navigationDelegate = buildNavDelegate()
             s.progressDelegate   = buildProgressDelegate()
             s.contentDelegate    = buildContentDelegate()
+            if (fileUploadHandler != null && appContext != null) {
+                try { s.promptDelegate = buildPromptDelegate(appContext) }
+                catch (e: Exception) { Log.w(TAG, "promptDelegate: ${e.message}") }
+            }
             if (permissionHandler != null && appContext != null) {
                 try { s.permissionDelegate = permissionHandler.buildPermissionDelegate(appContext) }
                 catch (e: Exception) { Log.w(TAG, "permDelegate: ${e.message}") }
@@ -187,9 +208,36 @@ class GeckoSessionWrapper(
         }
         override fun onCanGoBack(s: GeckoSession, c: Boolean) { _canGoBack.value = c }
         override fun onCanGoForward(s: GeckoSession, c: Boolean) { _canGoForward.value = c }
+        override fun onLoadRequest(s: GeckoSession, request: NavigationDelegate.LoadRequest): GeckoResult<AllowOrDeny>? {
+            if (request.target == NavigationDelegate.TARGET_WINDOW_NEW && request.uri.isNotBlank()) {
+                mainHandler.post { onNewTabRequested?.invoke(request.uri) }
+                return GeckoResult.fromValue(AllowOrDeny.DENY)
+            }
+            return null
+        }
         override fun onNewSession(s: GeckoSession, uri: String): GeckoResult<GeckoSession>? {
             mainHandler.post { onNewTabRequested?.invoke(uri) }
             return null
+        }
+    }
+
+    private fun buildPromptDelegate(ctx: Context) = object : PromptDelegate {
+        override fun onFilePrompt(
+            session: GeckoSession,
+            prompt : PromptDelegate.FilePrompt,
+        ): GeckoResult<PromptDelegate.PromptResponse> =
+            fileUploadHandler?.onFilePrompt(ctx, prompt) ?: GeckoResult.fromValue(prompt.dismiss())
+
+        override fun onPopupPrompt(
+            session: GeckoSession,
+            prompt : PromptDelegate.PopupPrompt,
+        ): GeckoResult<PromptDelegate.PromptResponse> {
+            val uri = prompt.targetUri
+            if (!uri.isNullOrBlank()) {
+                mainHandler.post { onNewTabRequested?.invoke(uri) }
+                return GeckoResult.fromValue(prompt.confirm(AllowOrDeny.DENY))
+            }
+            return GeckoResult.fromValue(prompt.dismiss())
         }
     }
 

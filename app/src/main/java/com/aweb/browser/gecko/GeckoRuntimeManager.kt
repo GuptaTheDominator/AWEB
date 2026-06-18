@@ -53,4 +53,21 @@ object GeckoRuntimeManager {
         init(context)
         return _runtime
     }
+
+    fun clearSessionContextData(context: Context, contextId: String) {
+        if (contextId.isBlank()) return
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            android.os.Handler(Looper.getMainLooper()).post {
+                clearSessionContextData(context, contextId)
+            }
+            return
+        }
+        try {
+            val rt = getOrInit(context) ?: return
+            rt.storageController.clearDataForSessionContext(contextId)
+            Log.i(TAG, "Cleared Gecko session-context data for contextId=$contextId")
+        } catch (e: Exception) {
+            Log.e(TAG, "clearSessionContextData failed: ${e.message}", e)
+        }
+    }
 }

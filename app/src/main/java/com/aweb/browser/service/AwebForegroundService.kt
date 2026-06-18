@@ -41,6 +41,7 @@ class AwebForegroundService : Service() {
             startForegroundCompat()
         } catch (e: Exception) {
             Log.e(TAG, "startForeground failed: ${e.message}")
+            stopSelf()
         }
     }
 
@@ -59,6 +60,7 @@ class AwebForegroundService : Service() {
                     startForegroundCompat()
                 } catch (e: Exception) {
                     Log.e(TAG, "startForeground in onStartCommand failed: ${e.message}")
+                    stopSelf()
                 }
                 Log.i(TAG, "Service (re)started")
             }
