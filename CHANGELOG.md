@@ -1,6 +1,6 @@
-## [v2.6.5] — 2026-06-17
+## [v2.6.5] — 2026-06-18
 
-### Fixed — Phase 1/2 audit issues
+### Fixed — Phase 1/2 audit issues + Phase 3 startup/memory kickoff
 
 - Wired Gecko sessions to download, permission, and file-upload handlers.
 - Added Gecko file prompt handling for `<input type="file">`.
@@ -16,6 +16,10 @@
 - Fixed search query URL encoding.
 - Added source-side release workflow support for stable secret-backed signing.
 - Added Close All confirmation and several UI correctness fixes.
+- Started Phase 3 runtime audit and fixed per-workspace restore gating.
+- Improved memory-pressure active-tab fallback to use latest access time.
+- Made foreground-service startup success/failure logging accurate.
+- Guarded service `onTaskRemoved()` health-worker scheduling.
 
 ---
 

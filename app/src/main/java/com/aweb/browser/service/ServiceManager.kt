@@ -20,17 +20,19 @@ class ServiceManager @Inject constructor() {
         private const val TAG = "ServiceManager"
     }
 
-    fun startService(context: Context) {
+    fun startService(context: Context): Boolean {
         val intent = Intent(context, AwebForegroundService::class.java)
-        try {
+        return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
                 context.startService(intent)
             }
             Log.i(TAG, "Foreground service started")
+            true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start service: ${e.message}")
+            false
         }
     }
 

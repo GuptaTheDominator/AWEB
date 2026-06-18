@@ -45,7 +45,7 @@ class TabLifecycleManager @Inject constructor(
     }
 
     private val scope  = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var isFirstRestoreDone = false
+    private val restoredWorkspaceIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     // Current policy — updated from Settings
     @Volatile var policy: MemoryPolicy = MemoryPolicy.BALANCED
@@ -135,7 +135,7 @@ class TabLifecycleManager @Inject constructor(
         scope.launch {
             Log.w(TAG, "Memory pressure level $level — trimming sessions")
 
-            val activeTab = allTabs.firstOrNull { it.isActive } ?: allTabs.lastOrNull { it.lastAccessed > 0 }
+            val activeTab = allTabs.firstOrNull { it.isActive } ?: allTabs.maxByOrNull { it.lastAccessed }
 
             val tabsToUnload: List<TabEntity> = when {
                 level >= android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> {
@@ -187,8 +187,7 @@ class TabLifecycleManager @Inject constructor(
      *  3. Leave all other tabs unloaded — they reload lazily when selected.
      */
     fun onAppRestore(allTabs: List<TabEntity>, workspace: WorkspaceEntity) {
-        if (isFirstRestoreDone) return
-        isFirstRestoreDone = true
+        if (!restoredWorkspaceIds.add(workspace.id)) return
         scope.launch {
             Log.i(TAG, "Restoring ${allTabs.size} tabs for workspace '${workspace.name}'")
 

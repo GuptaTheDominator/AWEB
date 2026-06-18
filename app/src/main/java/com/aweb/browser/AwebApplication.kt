@@ -71,8 +71,11 @@ class AwebApplication : Application(), Configuration.Provider {
         // Start foreground service IMMEDIATELY so oom_score_adj is elevated
         // before GeckoRuntime spins up (which causes RAM spike and LMKD kill)
         try {
-            serviceManager.startService(this)
-            Log.i("AwebApp", "Foreground service started — process priority elevated")
+            if (serviceManager.startService(this)) {
+                Log.i("AwebApp", "Foreground service started — process priority elevated")
+            } else {
+                Log.w("AwebApp", "Foreground service start was rejected")
+            }
         } catch (e: Exception) {
             Log.e("AwebApp", "Service start failed: ${e.message}")
         }

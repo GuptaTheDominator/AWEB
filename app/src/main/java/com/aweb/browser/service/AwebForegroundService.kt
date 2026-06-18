@@ -86,7 +86,8 @@ class AwebForegroundService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         Log.w(TAG, "Task removed")
-        ServiceHealthWorker.schedule(applicationContext)
+        try { ServiceHealthWorker.schedule(applicationContext) }
+        catch (e: Exception) { Log.w(TAG, "Scheduling health worker failed: ${e.message}") }
         super.onTaskRemoved(rootIntent)
     }
 
