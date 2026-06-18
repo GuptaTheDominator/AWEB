@@ -51,4 +51,10 @@ class SearchEngineTest {
         val url = SearchEngine.GOOGLE.buildSearchUrl("  kotlin  ")
         assertTrue(url.contains("kotlin"))
     }
+    @Test
+    fun `special characters in query are URL encoded`() {
+        val url = SearchEngine.GOOGLE.buildSearchUrl("a&b #tag")
+        assertEquals("https://www.google.com/search?q=a%26b+%23tag", url)
+    }
+
 }

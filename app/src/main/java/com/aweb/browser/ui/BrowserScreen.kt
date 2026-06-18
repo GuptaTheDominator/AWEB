@@ -32,8 +32,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,6 +76,7 @@ fun BrowserScreen(
 ) {
     val context  = LocalContext.current
     val activity = context as? Activity
+    val clipboard = LocalClipboardManager.current
 
     val tabState    by tabViewModel.uiState.collectAsState()
     val session     = tabState.activeSession
@@ -263,6 +266,14 @@ fun BrowserScreen(
                     onBookmark     = { featureViewModel.toggleBookmark(url, title) },
                     onShowFind     = { featureViewModel.showFind() },
                     onToggleUa     = { tabViewModel.toggleDesktopMode() },
+                    onCopyUrl       = {
+                        val toCopy = url.ifBlank { activeTab?.url.orEmpty() }
+                        if (toCopy.isNotBlank() && !toCopy.startsWith("about:")) {
+                            clipboard.setText(AnnotatedString(toCopy))
+                            toastMessage = "URL copied"
+                            toastIsEnable = true
+                        }
+                    },
                     onShowBookmarks = { featureViewModel.openBookmarks() },
                     showOverflowMenu = showOverflowMenu,
                     onToggleOverflow = { showOverflowMenu = !showOverflowMenu },
@@ -459,6 +470,7 @@ fun BrowserToolbar(
     onBookmark      : () -> Unit,
     onShowFind      : () -> Unit,
     onToggleUa      : () -> Unit,
+    onCopyUrl       : () -> Unit,
     onShowBookmarks : () -> Unit,
     showOverflowMenu: Boolean,
     onToggleOverflow: () -> Unit,
@@ -539,10 +551,25 @@ fun BrowserToolbar(
                 leadingIcon = {
                     Icon(
                         if (isSecure) Icons.Filled.Lock else Icons.Filled.LockOpen,
-                        "Security",
+                        if (isSecure) "Secure connection" else "Not secure or local page",
                         tint     = if (isSecure) Color(0xFF81C784) else Color(0xFF888888),
                         modifier = Modifier.size(14.dp),
                     )
+                },
+                trailingIcon = {
+                    if (isEditing && urlFieldValue.text.isNotBlank()) {
+                        IconButton(
+                            onClick = { urlFieldValue = TextFieldValue("") },
+                            modifier = Modifier.size(28.dp),
+                        ) {
+                            Icon(
+                                Icons.Filled.Close,
+                                "Clear address",
+                                tint = Color(0xFF888888),
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
                 },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
                 keyboardActions = KeyboardActions(onGo = {
@@ -615,6 +642,11 @@ fun BrowserToolbar(
                             )
                         },
                         onClick = { onDismissOverflow(); onToggleUa() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Copy current URL", color = Color.White) },
+                        leadingIcon = { Icon(Icons.Filled.ContentCopy, null, tint = Color.White) },
+                        onClick = { onDismissOverflow(); onCopyUrl() },
                     )
                     DropdownMenuItem(
                         text = { Text("Bookmarks", color = Color.White) },

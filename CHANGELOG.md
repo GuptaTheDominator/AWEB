@@ -1,3 +1,17 @@
+## [v2.6.8] — 2026-06-18
+
+### Enhanced — Phase 8/9 UI/UX + testing
+
+- Extracted omnibox URL/search normalization into a pure `UrlInputParser` for consistent behavior and unit testing.
+- Toolbar URL field now has a clear button while editing.
+- Toolbar security icon now has clearer accessibility text for secure vs non-secure/local pages.
+- Overflow menu now includes “Copy current URL” with clipboard support and a confirmation toast.
+- Added unit tests for omnibox URL/search normalization, including bare domains, localhost, IPv4, invalid IPs, search queries, and `about:` URLs.
+- Added unit tests for persisted HyperOS setup step IDs.
+- Added search-engine test coverage for URL encoding of special characters.
+
+---
+
 ## [v2.6.7] — 2026-06-18
 
 ### Fixed — Phase 6 background service / HyperOS survival audit
