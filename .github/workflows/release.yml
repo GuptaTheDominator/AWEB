@@ -5,11 +5,19 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
+    name: Signed ARM64 release APK
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    timeout-minutes: 60
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -42,12 +50,13 @@ jobs:
           test -n "$AWEB_KEY_ALIAS"
           test -n "$AWEB_KEY_PASSWORD"
           echo "$AWEB_KEYSTORE_BASE64" | base64 --decode > release.jks
-          cat > keystore.properties <<EOF
-          storeFile=../release.jks
-          storePassword=$AWEB_KEYSTORE_PASSWORD
-          keyAlias=$AWEB_KEY_ALIAS
-          keyPassword=$AWEB_KEY_PASSWORD
-          EOF
+          chmod 600 release.jks
+          printf '%s\n' \
+            "storeFile=../release.jks" \
+            "storePassword=$AWEB_KEYSTORE_PASSWORD" \
+            "keyAlias=$AWEB_KEY_ALIAS" \
+            "keyPassword=$AWEB_KEY_PASSWORD" > keystore.properties
+          chmod 600 keystore.properties
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -55,8 +64,18 @@ jobs:
       - name: Run unit tests
         run: ./gradlew testReleaseUnitTest --stacktrace --no-daemon
 
+      - name: Run Android lint
+        run: ./gradlew lintRelease --stacktrace --no-daemon
+
       - name: Build release APK
         run: ./gradlew assembleRelease --stacktrace --no-daemon
+
+      - name: Verify APK signature and alignment
+        run: |
+          APK=$(ls app/build/outputs/apk/release/*arm64-v8a-release.apk | head -n 1)
+          BUILD_TOOLS=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+          "$BUILD_TOOLS/zipalign" -c -p 4 "$APK"
 
       - name: Prepare release artifacts
         run: |
@@ -66,9 +85,21 @@ jobs:
           cp "$APK" "$OUT"
           sha256sum "$OUT" > "$OUT.sha256"
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: AWEB-${{ github.ref_name }}-release-artifacts
+          path: |
+            app/build/outputs/apk/release/AWEB-${{ github.ref_name }}-arm64.apk
+            app/build/outputs/apk/release/AWEB-${{ github.ref_name }}-arm64.apk.sha256
+            app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          name: AWEB ${{ github.ref_name }} ARM64
           files: |
             app/build/outputs/apk/release/AWEB-${{ github.ref_name }}-arm64.apk
             app/build/outputs/apk/release/AWEB-${{ github.ref_name }}-arm64.apk.sha256

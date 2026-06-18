@@ -5,7 +5,7 @@
 **A personal Android tablet browser built around isolated workspaces**
 
 [![Latest Release](https://img.shields.io/github/v/release/GuptaTheDominator/AWEB?label=download&color=9C6FFF&style=for-the-badge)](https://github.com/GuptaTheDominator/AWEB/releases/latest)
-[![APK Size](https://img.shields.io/badge/APK-~196%20MB-4FC3F7?style=for-the-badge)](https://github.com/GuptaTheDominator/AWEB/releases/latest)
+[![APK Size](https://img.shields.io/badge/APK-~199%20MiB-4FC3F7?style=for-the-badge)](https://github.com/GuptaTheDominator/AWEB/releases/latest)
 [![Android](https://img.shields.io/badge/Android-10%2B%20%28API%2029%29-81C784?style=for-the-badge)](https://github.com/GuptaTheDominator/AWEB/releases/latest)
 [![Engine](https://img.shields.io/badge/Engine-GeckoView%20132-FF6611?style=for-the-badge)](https://mozilla.github.io/geckoview/)
 
@@ -13,7 +13,7 @@
 
 ---
 
-### [⬇ Download AWEB-v1.0.7-arm64.apk](https://github.com/GuptaTheDominator/AWEB/releases/latest)
+### [⬇ Download latest ARM64 APK](https://github.com/GuptaTheDominator/AWEB/releases/latest)
 
 </div>
 
@@ -96,7 +96,7 @@ Tabs automatically move `Active → Recent → Unloaded` based on usage. Unloade
 ## Install
 
 ```bash
-adb install -r AWEB-v1.0.7-arm64.apk
+adb install -r AWEB-vX.Y.Z-arm64.apk
 ```
 
 Or download directly to your device and install via a file manager (enable **Install unknown apps** for your file manager).
@@ -142,14 +142,14 @@ Lifecycle Layer
 ├── KeepAliveManager         Toggle, cap enforcement, event relay
 └── MemoryPolicy             CONSERVATIVE / BALANCED / PERFORMANCE presets
 
-Data Layer (Room v2)
+Data Layer (Room v4)
 ├── WorkspaceEntity / DAO    id, name, contextId (permanent), color, order
 ├── TabEntity / DAO          url, title, lifecycle state, keepAlive, pinned
 ├── BookmarkEntity / DAO     url, title, created_at
 └── AppSettingEntity / DAO   Key-value settings store
 
 Background Layer
-├── AwebForegroundService    Persistent notification, START_STICKY
+├── AwebForegroundService    Persistent notification, user-respectful survival mode
 ├── BootReceiver             Restarts service on boot / package replace
 ├── ServiceHealthWorker      WorkManager periodic health check (15 min)
 └── ServiceManager           Single point for all service intent building
@@ -178,14 +178,14 @@ adb install -r app/build/outputs/apk/release/app-arm64-v8a-release.apk
 
 | Version | Key change |
 |---|---|
-| **v1.0.7** | Deep codebase scan — `Divider→HorizontalDivider`, `ArrowBack→AutoMirrored`, `@Suppress` for deprecated APIs, `@Transaction` on `TabDao.setActive`, typed `GeckoResult<Void>`, `.catch{}` on all Flows |
-| v1.0.6 | **LMKD kill fix** — foreground service starts synchronously in `Application.onCreate()` before GeckoRuntime, elevating process priority before the RAM spike |
-| v1.0.5 | `loadUrl()` race condition fix, 8-retry GeckoSession backoff, `withContext(Main)` for session creation |
-| v1.0.4 | Root cause: `GeckoRuntime.create()` must run on Main thread — all thread safety enforced |
-| v1.0.3 | Comprehensive startup crash hardening — all try-catch wrapping |
-| v1.0.2 | Missing launcher icons, Hilt injection guards |
-| v1.0.1 | APK size 639 MB → 196 MB via ARM64-only ABI split |
-| v1.0.0 | All 9 development phases complete |
+| **v2.6.11** | Source: CI/release pipeline hardening + final release checklist/docs |
+| v2.6.10 | Performance pass: fewer Compose fallback allocations, less notification-update traffic, cached search-engine state, faster close-all-tabs |
+| v2.6.9 | Security/privacy pass: URL/query redaction in logs/crash data and safer download URL schemes |
+| v2.6.8 | UI/UX + tests: clearer omnibox, copy URL action, parser tests, setup-step tests |
+| v2.6.7 | Service survival pass: user-respectful Exit action and persisted HyperOS checklist |
+| v2.6.6 | Data/browser pass: Room v4, bookmark uniqueness, safer active-tab/workspace updates, download filename hardening |
+| v2.6.5 | Phase 1–3 stabilization: browser feature wiring, file upload, external URLs, crash recovery, memory policy, release secrets |
+| v2.6.4 | Release build compilation fix and v2.6.x baseline |
 
 ---
 

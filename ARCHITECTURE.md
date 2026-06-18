@@ -160,9 +160,9 @@ Priority order (highest to lowest):
 ```sql
 workspaces  id, name, context_id, color_hex, icon_name, order_index, is_active
 tabs        id, workspace_id, url, title, order_index, is_active, is_pinned,
-            keep_alive, last_lifecycle_state, last_accessed
+            keep_alive, last_lifecycle_state, last_accessed, user_agent_mode
 app_settings  key, value
-bookmarks   id, url, title, created_at
+bookmarks   id, url UNIQUE, title, created_at
 ```
 
 `context_id` has a `UNIQUE` index. It is set once and never updated.
@@ -171,7 +171,7 @@ All DAOs expose `Flow<List<T>>` for live observation and `suspend fun` for mutat
 
 ### AppState (in-process volatile snapshot)
 
-`AppState` is a Kotlin `object` with `@Volatile` fields updated by `TabViewModel` on every state collect. It exists so `MemoryPressureReceiver` (which runs on any thread, with no coroutine context) can read the current tab/workspace list without suspending.
+`AppState` is a Kotlin `object` backed by an `AtomicReference<Snapshot>` updated by `TabViewModel` on every relevant state collect. It exists so `MemoryPressureReceiver` and service notification code can read a consistent tab/workspace/search-engine snapshot without suspending.
 
 ---
 
@@ -181,12 +181,14 @@ All DAOs expose `Flow<List<T>>` for live observation and `suspend fun` for mutat
 App process running
     AwebForegroundService  ← priority: FOREGROUND (harder for system to kill)
         └── Persistent notification with KA tab count
-        └── START_STICKY (Android restarts if killed)
-        └── onTaskRemoved → ServiceHealthWorker.schedule()
+        └── START_STICKY while survival mode is enabled
+        └── notification Exit disables survival mode and returns START_NOT_STICKY
+        └── onTaskRemoved → ServiceHealthWorker.schedule() only when enabled
 
 Every 15 minutes (WorkManager)
     ServiceHealthWorker.doWork()
-        └── startForegroundService() (restart if dead)
+        └── checks ServicePreferences.isEnabled()
+        └── startForegroundService() (restart if enabled and dead)
         └── ACTION_UPDATE_NOTIF (refresh notification count)
 
 On device boot / app update
@@ -253,6 +255,6 @@ Next launch
 | `BrowserScreen.kt` | Main browser UI composition; all overlays wired |
 | `TabViewModel.kt` | Tab CRUD, workspace switching, session wiring |
 | `WorkspaceViewModel.kt` | Workspace CRUD, settings propagation to lifecycle manager |
-| `AwebForegroundService.kt` | Persistent notification; START_STICKY |
+| `AwebForegroundService.kt` | Persistent notification; user-respectful survival mode |
 | `ServiceHealthWorker.kt` | WorkManager periodic restart check |
 | `CrashRecoveryManager.kt` | Clean/unclean exit detection; crash banner trigger |

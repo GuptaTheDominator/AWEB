@@ -1,3 +1,15 @@
+## [v2.6.11] — 2026-06-18
+
+### Improved — Phase 11/12 CI, release pipeline, and final planning
+
+- Added a CI workflow for pushes/PRs to `main` with unit tests, lint, debug APK build, and debug APK artifact upload.
+- Hardened the release workflow with concurrency, timeout, lint gate, APK signature verification, zipalign verification, consistent release artifact naming, and artifact upload.
+- Made release keystore restoration safer with `chmod 600` and deterministic `keystore.properties` writing.
+- Updated README download/install/version-history references to avoid stale hard-coded APK versions.
+- Added final release checklist and Phase 11/12 completion report.
+
+---
+
 ## [v2.6.10] — 2026-06-18
 
 ### Improved — Phase 10 performance audit
